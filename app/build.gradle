@@ -1,0 +1,35 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "io.github.buildsbyben.shoppinglistcalc"
+    compileSdk 35
+
+    signingConfigs {
+        release {
+            def releaseStoreFile = System.getenv("SHOPPING_CALC_STORE_FILE")
+            if (releaseStoreFile) {
+                storeFile file(releaseStoreFile)
+                storePassword System.getenv("SHOPPING_CALC_STORE_PASSWORD")
+                keyAlias System.getenv("SHOPPING_CALC_KEY_ALIAS")
+                keyPassword System.getenv("SHOPPING_CALC_KEY_PASSWORD")
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId "io.github.buildsbyben.shoppinglistcalc"
+        minSdk 23
+        targetSdk 35
+        versionCode 12
+        versionName "1.11"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+}
