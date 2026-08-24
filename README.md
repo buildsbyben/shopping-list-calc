@@ -20,6 +20,19 @@ ads, cloud sync, or a long list of unnecessary features.
   clear a trip, or start a new list.
 - Uses a native dark interface that works well for quick one-handed updates.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/shopping-list-active-items.png" alt="Active shopping list with price, quantity, and weight-based item controls" width="240">
+  <img src="docs/screenshots/shopping-list-completed-item.png" alt="Completed shopping item condensed below active items" width="240">
+  <img src="docs/screenshots/shopping-list-menu.png" alt="Shopping Calculator overflow menu" width="240">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/shopping-list-settings.png" alt="Settings for sales-tax rate and shopping budget" width="240">
+  <img src="docs/screenshots/shopping-list-edit-list.png" alt="Edit List screen for changing the item order" width="240">
+</p>
+
 ## Privacy and data
 
 Shopping Calculator is offline-first.
