@@ -1,6 +1,6 @@
-# Shopping Calculator
+# Shopping List Calculator
 
-Shopping Calculator is a small, offline Android app for planning a grocery run
+Shopping List Calculator is a small, offline Android app for planning a grocery run
 and keeping a running total while you shop. Add the items you need, set a
 budget and tax rate, then fill in prices and quantities as items go into your
 cart.
@@ -25,7 +25,7 @@ ads, cloud sync, or a long list of unnecessary features.
 <p align="center">
   <img src="docs/screenshots/shopping-list-active-items.png" alt="Active shopping list with price, quantity, and weight-based item controls" width="240">
   <img src="docs/screenshots/shopping-list-completed-item.png" alt="Completed shopping item condensed below active items" width="240">
-  <img src="docs/screenshots/shopping-list-menu.png" alt="Shopping Calculator overflow menu" width="240">
+  <img src="docs/screenshots/shopping-list-menu.png" alt="Shopping List Calculator overflow menu" width="240">
 </p>
 
 <p align="center">

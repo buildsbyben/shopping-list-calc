@@ -1,0 +1,13 @@
+Shopping List Calculator is a focused, offline tool for planning a grocery trip and keeping a running total as items go into your cart.
+
+Build a reusable shopping list in the order you move through the store. Enter a price and quantity for each item, or use weight mode for items priced by the pound. The app keeps a live subtotal, sales tax, total, and remaining budget.
+
+Features:
+
+• Reusable, reorderable shopping lists
+• Quantity and weight-based item calculations
+• Live subtotal, sales-tax, total, and budget tracking
+• Completed items kept out of the way but easy to edit
+• Offline operation with no account, ads, analytics, or cloud sync
+
+Your shopping list, budget, and tax-rate settings stay on your device. The app does not request internet access or collect personal information.
