@@ -44,8 +44,10 @@ Shopping Calculator is offline-first.
 
 ## Install
 
-F-Droid availability is planned. Until then, you can build the app from source
-or install a release APK you trust.
+Download Shopping List Calculator from
+[F-Droid](https://f-droid.org/packages/io.github.buildsbyben.shoppinglistcalc).
+
+You can also build the app from source or install a release APK you trust.
 
 Because Android requires an APK to be signed, an app installed from a different
 source or signed with a different key may need to be uninstalled before Android
