@@ -355,22 +355,32 @@ public class MainActivity extends Activity {
         rows.addView(row, matchWrap(bottom(ShoppingStyle.ITEM_CARD_GAP_DP)));
 
         handle.setOnLongClickListener(v -> startReorderDrag(rows, row, item));
+        // A drag event is delivered to the view directly under the finger first.
+        // Handle it here as well as on the list so crossing a row always updates
+        // the insertion marker instead of leaving the drag stranded on that row.
+        row.setOnDragListener((v, event) -> handleReorderDragEvent(
+                rows, (View) v, event, ((View) v).getTop()));
     }
 
     private boolean startReorderDrag(LinearLayout rows, View row, ShoppingItem item) {
         ReorderDrag drag = new ReorderDrag(row, item);
         drag.placeholder = reorderPlaceholder();
-        int index = rows.indexOfChild(row);
-        rows.removeView(row);
-        rows.addView(drag.placeholder, index);
         ClipData data = ClipData.newPlainText("shopping-item", item.name);
         View.DragShadowBuilder shadow = new View.DragShadowBuilder(row);
+        boolean started;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            row.startDragAndDrop(data, shadow, drag, 0);
+            started = row.startDragAndDrop(data, shadow, drag, 0);
         } else {
-            row.startDrag(data, shadow, drag, 0);
+            started = row.startDrag(data, shadow, drag, 0);
         }
-        return true;
+        // startDragAndDrop requires an attached source view.  The old code
+        // removed it before starting, which could leave only empty markers.
+        if (started) {
+            int index = rows.indexOfChild(row);
+            rows.removeView(row);
+            rows.addView(drag.placeholder, index);
+        }
+        return started;
     }
 
     private View reorderPlaceholder() {
@@ -379,6 +389,8 @@ public class MainActivity extends Activity {
         outline.setColor(Color.TRANSPARENT);
         outline.setStroke(dp(1), accent);
         placeholder.setBackground(outline);
+        placeholder.setOnDragListener((v, event) -> handleReorderDragEvent(
+                list, (View) v, event, ((View) v).getTop()));
         LinearLayout.LayoutParams params = matchWrap(bottom(ShoppingStyle.ITEM_CARD_GAP_DP));
         params.height = dp(68);
         placeholder.setLayoutParams(params);
@@ -386,38 +398,44 @@ public class MainActivity extends Activity {
     }
 
     private void wireReorderDragTarget(LinearLayout rows, ArrayList<ShoppingItem> reorderItems) {
-        rows.setOnDragListener((v, event) -> {
-            if (!(event.getLocalState() instanceof ReorderDrag)) {
-                return false;
-            }
-            ReorderDrag drag = (ReorderDrag) event.getLocalState();
-            if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) {
+        rows.setOnDragListener((v, event) -> handleReorderDragEvent(rows, rows, event, 0));
+    }
+
+    private boolean handleReorderDragEvent(LinearLayout rows, View target, DragEvent event, int targetTop) {
+        if (!(event.getLocalState() instanceof ReorderDrag)) {
+            return false;
+        }
+        ReorderDrag drag = (ReorderDrag) event.getLocalState();
+        if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) {
+            return true;
+        }
+        if (event.getAction() == DragEvent.ACTION_DRAG_LOCATION) {
+            movePlaceholder(rows, drag.placeholder, targetTop + event.getY());
+            return true;
+        }
+        if (event.getAction() == DragEvent.ACTION_DROP) {
+            if (drag.finished) {
                 return true;
             }
-            if (event.getAction() == DragEvent.ACTION_DRAG_LOCATION) {
-                movePlaceholder(rows, drag.placeholder, event.getY());
-                return true;
-            }
-            if (event.getAction() == DragEvent.ACTION_DROP) {
-                int destination = rows.indexOfChild(drag.placeholder) - 1;
+            int destination = rows.indexOfChild(drag.placeholder) - 1;
+            rows.removeView(drag.placeholder);
+            rows.addView(drag.row, destination + 1);
+            reorderItems.remove(drag.item);
+            reorderItems.add(destination, drag.item);
+            drag.dropped = true;
+            drag.finished = true;
+            return true;
+        }
+        if (event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
+            if (!drag.finished && rows.indexOfChild(drag.placeholder) >= 0) {
+                int destination = rows.indexOfChild(drag.placeholder);
                 rows.removeView(drag.placeholder);
-                rows.addView(drag.row, destination + 1);
-                int origin = reorderItems.indexOf(drag.item);
-                reorderItems.remove(origin);
-                reorderItems.add(destination, drag.item);
-                drag.dropped = true;
-                return true;
-            }
-            if (event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
-                if (!drag.dropped && rows.indexOfChild(drag.placeholder) >= 0) {
-                    int destination = rows.indexOfChild(drag.placeholder);
-                    rows.removeView(drag.placeholder);
-                    rows.addView(drag.row, destination);
-                }
-                return true;
+                rows.addView(drag.row, destination);
+                drag.finished = true;
             }
             return true;
-        });
+        }
+        return true;
     }
 
     private void movePlaceholder(LinearLayout rows, View placeholder, float y) {
@@ -1196,6 +1214,7 @@ public class MainActivity extends Activity {
         final ShoppingItem item;
         View placeholder;
         boolean dropped;
+        boolean finished;
 
         ReorderDrag(View row, ShoppingItem item) {
             this.row = row;
