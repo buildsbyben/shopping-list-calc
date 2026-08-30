@@ -12,6 +12,7 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
@@ -45,6 +46,7 @@ public class MainActivity extends Activity {
     private ShoppingItem focusAfterRebuild;
     private double taxRate;
     private double budget;
+    private boolean formattingPrice;
 
     private final int bg = ShoppingStyle.BACKGROUND;
     private final int inputBg = ShoppingStyle.INPUT_BACKGROUND;
@@ -182,6 +184,7 @@ public class MainActivity extends Activity {
         PopupMenu menu = new PopupMenu(this, anchor);
         menu.getMenu().add("Settings");
         menu.getMenu().add("Edit List");
+        menu.getMenu().add("Reorder items");
         menu.getMenu().add("Clear list");
         menu.getMenu().add("Delete list");
         menu.setOnMenuItemClickListener(item -> {
@@ -192,6 +195,10 @@ public class MainActivity extends Activity {
             }
             if ("Edit List".equals(title)) {
                 showListViewDialog();
+                return true;
+            }
+            if ("Reorder items".equals(title)) {
+                showReorderDialog();
                 return true;
             }
             if ("Clear list".equals(title)) {
@@ -279,6 +286,111 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
+    private void showReorderDialog() {
+        sortItems();
+        ArrayList<ShoppingItem> reorderItems = new ArrayList<>(items);
+        LinearLayout rows = column();
+        rows.setPadding(dp(18), dp(8), dp(18), 0);
+        rows.addView(label("Drag the handle to move an item.", 14, muted, false), matchWrap(bottom(8)));
+
+        for (ShoppingItem item : reorderItems) {
+            addReorderRow(rows, reorderItems, item);
+        }
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(rows);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Reorder items")
+                .setView(scrollView)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Done", null)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(accent);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(muted);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                for (int i = 0; i < reorderItems.size(); i++) {
+                    reorderItems.get(i).order = (i + 1) * 10;
+                }
+                items.clear();
+                items.addAll(reorderItems);
+                saveItems();
+                dialog.dismiss();
+                rebuildList();
+                recalc();
+            });
+        });
+        dialog.show();
+    }
+
+    private void addReorderRow(LinearLayout rows, ArrayList<ShoppingItem> reorderItems, ShoppingItem item) {
+        LinearLayout row = row();
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(8), dp(6), dp(8));
+        row.setBackgroundColor(cardBg);
+
+        LinearLayout details = column();
+        TextView name = label(item.name.isEmpty() ? "Unnamed item" : item.name, 16, text, true);
+        details.addView(name);
+        String quantity = item.byWeight ? trimNumber(item.qty) + " lb" : "Qty " + trimNumber(item.qty);
+        details.addView(label(money.format(item.price) + " · " + quantity, 13, muted, false));
+        row.addView(details, weightWrap(1));
+
+        TextView handle = label("☰", 27, panelIcon, false);
+        handle.setGravity(Gravity.CENTER);
+        handle.setContentDescription("Drag to reorder " + item.name);
+        row.addView(handle, new LinearLayout.LayoutParams(dp(48), dp(52)));
+        rows.addView(row, matchWrap(bottom(ShoppingStyle.ITEM_CARD_GAP_DP)));
+
+        handle.setOnTouchListener(new View.OnTouchListener() {
+            private float lastRawY;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    lastRawY = event.getRawY();
+                    row.setAlpha(0.72f);
+                    return true;
+                }
+                if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                    if (Math.abs(event.getRawY() - lastRawY) < dp(12)) {
+                        return true;
+                    }
+                    int currentIndex = rows.indexOfChild(row);
+                    int targetIndex = reorderTargetIndex(rows, event.getRawY());
+                    if (targetIndex >= 1 && targetIndex != currentIndex) {
+                        rows.removeView(row);
+                        rows.addView(row, targetIndex > currentIndex ? targetIndex : targetIndex);
+                        int itemIndex = currentIndex - 1;
+                        int targetItemIndex = targetIndex - 1;
+                        ShoppingItem moved = reorderItems.remove(itemIndex);
+                        reorderItems.add(targetItemIndex, moved);
+                    }
+                    lastRawY = event.getRawY();
+                    return true;
+                }
+                if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    row.setAlpha(1f);
+                    return true;
+                }
+                return true;
+            }
+        });
+    }
+
+    private int reorderTargetIndex(LinearLayout rows, float rawY) {
+        for (int i = 1; i < rows.getChildCount(); i++) {
+            View child = rows.getChildAt(i);
+            int[] location = new int[2];
+            child.getLocationOnScreen(location);
+            if (rawY < location[1] + child.getHeight() / 2f) {
+                return i;
+            }
+        }
+        return rows.getChildCount() - 1;
+    }
+
     private void rebuildList() {
         rebuilding = true;
         sortItems();
@@ -341,7 +453,7 @@ public class MainActivity extends Activity {
             card.addView(fields, matchWrap(top(ShoppingStyle.FIELD_GAP_DP)));
 
             EditText price = input(item.byWeight ? "Price/lb" : "Price", true);
-            price.setText(item.price == 0 ? "" : money.format(item.price));
+            price.setText(money.format(item.price));
             fields.addView(inputBox(price), weightWrap(1));
             itemInputs.add(new ItemInput(item, price, 1));
 
@@ -364,6 +476,13 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(dp(52), dp(ShoppingStyle.CONTROL_HEIGHT_DP));
             modeParams.leftMargin = dp(ShoppingStyle.FIELD_GAP_DP);
             fields.addView(mode, modeParams);
+
+            price.addTextChangedListener(new SimpleWatcher() {
+                @Override
+                public void afterTextChanged(Editable s) {
+                    formatMoneyAsCents(price);
+                }
+            });
 
             SimpleWatcher watcher = new SimpleWatcher() {
                 @Override
@@ -394,8 +513,6 @@ public class MainActivity extends Activity {
             price.setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus) {
                     scrollInputIntoView(price);
-                } else {
-                    formatPriceInput(price);
                 }
             });
             if (weight != null) {
@@ -961,10 +1078,32 @@ public class MainActivity extends Activity {
 
     private void formatPriceInput(EditText input) {
         double value = parseMoney(input, 0);
-        String formatted = value == 0 ? "" : money.format(value);
+        String formatted = money.format(value);
         if (!formatted.equals(input.getText().toString())) {
             input.setText(formatted);
             input.setSelection(input.getText().length());
+        }
+    }
+
+    private void formatMoneyAsCents(EditText input) {
+        if (formattingPrice) {
+            return;
+        }
+        String digits = input.getText().toString().replaceAll("\\D", "");
+        long cents = 0;
+        try {
+            if (!digits.isEmpty()) {
+                cents = Long.parseLong(digits);
+            }
+        } catch (NumberFormatException ignored) {
+            // Keep the input usable if an unusually long number is pasted.
+        }
+        String formatted = money.format(cents / 100.0);
+        if (!formatted.equals(input.getText().toString())) {
+            formattingPrice = true;
+            input.setText(formatted);
+            input.setSelection(formatted.length());
+            formattingPrice = false;
         }
     }
 
