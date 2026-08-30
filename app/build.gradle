@@ -28,6 +28,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Keeps test builds installable beside the F-Droid release.
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+        }
         release {
             // F-Droid builds unsigned release APKs and signs them itself.
             // Local release builds use this signing config only when supplied.
