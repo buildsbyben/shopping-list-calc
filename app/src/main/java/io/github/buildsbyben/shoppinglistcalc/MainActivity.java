@@ -350,11 +350,16 @@ public class MainActivity extends Activity {
 
         TextView handle = label("☰", 27, panelIcon, false);
         handle.setGravity(Gravity.CENTER);
-        handle.setContentDescription("Drag to reorder " + item.name);
+        row.setContentDescription("Press and hold to reorder " + item.name);
+        handle.setContentDescription("Press and hold anywhere on this item to reorder " + item.name);
         row.addView(handle, new LinearLayout.LayoutParams(dp(48), dp(52)));
         rows.addView(row, matchWrap(bottom(ShoppingStyle.ITEM_CARD_GAP_DP)));
 
-        handle.setOnLongClickListener(v -> startReorderDrag(rows, row, item));
+        View.OnLongClickListener startDrag = v -> startReorderDrag(rows, row, item);
+        // The entire item is the drag target. Keep the same listener on the
+        // handle too: a child view can receive the long-press before its row.
+        row.setOnLongClickListener(startDrag);
+        handle.setOnLongClickListener(startDrag);
         // A drag event is delivered to the view directly under the finger first.
         // Handle it here as well as on the list so crossing a row always updates
         // the insertion marker instead of leaving the drag stranded on that row.
@@ -639,7 +644,7 @@ public class MainActivity extends Activity {
 
     private void rebuildReorderList() {
         list.removeAllViews();
-        list.addView(label("Drag the handle to move an item.", 14, muted, false), matchWrap(bottom(8)));
+        list.addView(label("Press and hold an item, then drag it to a new position.", 14, muted, false), matchWrap(bottom(8)));
         if (reorderItems == null || reorderItems.isEmpty()) {
             TextView empty = label("No items yet.", 16, muted, false);
             empty.setGravity(Gravity.CENTER);
