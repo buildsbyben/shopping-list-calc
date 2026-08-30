@@ -2,7 +2,9 @@ package io.github.buildsbyben.shoppinglistcalc;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.os.Build;
@@ -12,7 +14,7 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
+import android.view.DragEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
@@ -352,52 +354,85 @@ public class MainActivity extends Activity {
         row.addView(handle, new LinearLayout.LayoutParams(dp(48), dp(52)));
         rows.addView(row, matchWrap(bottom(ShoppingStyle.ITEM_CARD_GAP_DP)));
 
-        handle.setOnTouchListener(new View.OnTouchListener() {
-            private float lastRawY;
+        handle.setOnLongClickListener(v -> startReorderDrag(rows, row, item));
+    }
 
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                    lastRawY = event.getRawY();
-                    row.setAlpha(0.72f);
-                    return true;
-                }
-                if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
-                    if (Math.abs(event.getRawY() - lastRawY) < dp(12)) {
-                        return true;
-                    }
-                    int currentIndex = rows.indexOfChild(row);
-                    int targetIndex = reorderTargetIndex(rows, event.getRawY());
-                    if (targetIndex >= 1 && targetIndex != currentIndex) {
-                        rows.removeView(row);
-                        rows.addView(row, targetIndex > currentIndex ? targetIndex : targetIndex);
-                        int itemIndex = currentIndex - 1;
-                        int targetItemIndex = targetIndex - 1;
-                        ShoppingItem moved = reorderItems.remove(itemIndex);
-                        reorderItems.add(targetItemIndex, moved);
-                    }
-                    lastRawY = event.getRawY();
-                    return true;
-                }
-                if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                    row.setAlpha(1f);
-                    return true;
+    private boolean startReorderDrag(LinearLayout rows, View row, ShoppingItem item) {
+        ReorderDrag drag = new ReorderDrag(row, item);
+        drag.placeholder = reorderPlaceholder();
+        int index = rows.indexOfChild(row);
+        rows.removeView(row);
+        rows.addView(drag.placeholder, index);
+        ClipData data = ClipData.newPlainText("shopping-item", item.name);
+        View.DragShadowBuilder shadow = new View.DragShadowBuilder(row);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            row.startDragAndDrop(data, shadow, drag, 0);
+        } else {
+            row.startDrag(data, shadow, drag, 0);
+        }
+        return true;
+    }
+
+    private View reorderPlaceholder() {
+        View placeholder = new View(this);
+        GradientDrawable outline = new GradientDrawable();
+        outline.setColor(Color.TRANSPARENT);
+        outline.setStroke(dp(1), accent);
+        placeholder.setBackground(outline);
+        LinearLayout.LayoutParams params = matchWrap(bottom(ShoppingStyle.ITEM_CARD_GAP_DP));
+        params.height = dp(68);
+        placeholder.setLayoutParams(params);
+        return placeholder;
+    }
+
+    private void wireReorderDragTarget(LinearLayout rows, ArrayList<ShoppingItem> reorderItems) {
+        rows.setOnDragListener((v, event) -> {
+            if (!(event.getLocalState() instanceof ReorderDrag)) {
+                return false;
+            }
+            ReorderDrag drag = (ReorderDrag) event.getLocalState();
+            if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) {
+                return true;
+            }
+            if (event.getAction() == DragEvent.ACTION_DRAG_LOCATION) {
+                movePlaceholder(rows, drag.placeholder, event.getY());
+                return true;
+            }
+            if (event.getAction() == DragEvent.ACTION_DROP) {
+                int destination = rows.indexOfChild(drag.placeholder) - 1;
+                rows.removeView(drag.placeholder);
+                rows.addView(drag.row, destination + 1);
+                int origin = reorderItems.indexOf(drag.item);
+                reorderItems.remove(origin);
+                reorderItems.add(destination, drag.item);
+                drag.dropped = true;
+                return true;
+            }
+            if (event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
+                if (!drag.dropped && rows.indexOfChild(drag.placeholder) >= 0) {
+                    int destination = rows.indexOfChild(drag.placeholder);
+                    rows.removeView(drag.placeholder);
+                    rows.addView(drag.row, destination);
                 }
                 return true;
             }
+            return true;
         });
     }
 
-    private int reorderTargetIndex(LinearLayout rows, float rawY) {
+    private void movePlaceholder(LinearLayout rows, View placeholder, float y) {
+        rows.removeView(placeholder);
+        rows.addView(placeholder, reorderTargetIndex(rows, y));
+    }
+
+    private int reorderTargetIndex(LinearLayout rows, float y) {
         for (int i = 1; i < rows.getChildCount(); i++) {
             View child = rows.getChildAt(i);
-            int[] location = new int[2];
-            child.getLocationOnScreen(location);
-            if (rawY < location[1] + child.getHeight() / 2f) {
+            if (y < child.getTop() + child.getHeight() / 2f) {
                 return i;
             }
         }
-        return rows.getChildCount() - 1;
+        return rows.getChildCount();
     }
 
     private void rebuildList() {
@@ -594,6 +629,7 @@ public class MainActivity extends Activity {
             list.addView(empty);
             return;
         }
+        wireReorderDragTarget(list, reorderItems);
         for (ShoppingItem item : reorderItems) {
             addReorderRow(list, reorderItems, item);
         }
@@ -1152,6 +1188,18 @@ public class MainActivity extends Activity {
             this.item = item;
             this.input = input;
             this.field = field;
+        }
+    }
+
+    private static class ReorderDrag {
+        final View row;
+        final ShoppingItem item;
+        View placeholder;
+        boolean dropped;
+
+        ReorderDrag(View row, ShoppingItem item) {
+            this.row = row;
+            this.item = item;
         }
     }
 
