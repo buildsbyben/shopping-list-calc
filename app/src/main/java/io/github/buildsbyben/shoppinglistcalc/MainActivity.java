@@ -42,11 +42,15 @@ public class MainActivity extends Activity {
     private TextView taxView;
     private TextView totalView;
     private TextView remainingView;
+    private Button addButton;
+    private Button menuButton;
     private boolean rebuilding;
     private ShoppingItem focusAfterRebuild;
     private double taxRate;
     private double budget;
     private boolean formattingPrice;
+    private boolean reordering;
+    private ArrayList<ShoppingItem> reorderItems;
 
     private final int bg = ShoppingStyle.BACKGROUND;
     private final int inputBg = ShoppingStyle.INPUT_BACKGROUND;
@@ -102,6 +106,7 @@ public class MainActivity extends Activity {
 
         Button add = button("+ Item", accent, contrastFor(accent));
         totalLine.addView(add, new LinearLayout.LayoutParams(dp(84), dp(ShoppingStyle.SUMMARY_ACTION_SIZE_DP)));
+        addButton = add;
 
         Button menu = button("⋮", panelSoft, panelIcon);
         menu.setTextSize(22);
@@ -111,6 +116,7 @@ public class MainActivity extends Activity {
         );
         menuParams.leftMargin = dp(ShoppingStyle.FIELD_GAP_DP);
         totalLine.addView(menu, menuParams);
+        menuButton = menu;
 
         LinearLayout summaryGrid = row();
         summaryGrid.setGravity(Gravity.CENTER_VERTICAL);
@@ -198,7 +204,7 @@ public class MainActivity extends Activity {
                 return true;
             }
             if ("Reorder items".equals(title)) {
-                showReorderDialog();
+                enterReorderMode();
                 return true;
             }
             if ("Clear list".equals(title)) {
@@ -286,42 +292,45 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
-    private void showReorderDialog() {
+    private void enterReorderMode() {
         sortItems();
-        ArrayList<ShoppingItem> reorderItems = new ArrayList<>(items);
-        LinearLayout rows = column();
-        rows.setPadding(dp(18), dp(8), dp(18), 0);
-        rows.addView(label("Drag the handle to move an item.", 14, muted, false), matchWrap(bottom(8)));
+        reorderItems = new ArrayList<>(items);
+        reordering = true;
+        addButton.setText("Save");
+        addButton.setOnClickListener(v -> exitReorderMode(true));
+        menuButton.setText("Cancel");
+        menuButton.setTextSize(12);
+        menuButton.setOnClickListener(v -> exitReorderMode(false));
+        rebuildList();
+    }
 
-        for (ShoppingItem item : reorderItems) {
-            addReorderRow(rows, reorderItems, item);
+    private void exitReorderMode(boolean save) {
+        if (save && reorderItems != null) {
+            for (int i = 0; i < reorderItems.size(); i++) {
+                reorderItems.get(i).order = (i + 1) * 10;
+            }
+            items.clear();
+            items.addAll(reorderItems);
+            saveItems();
         }
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(rows);
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Reorder items")
-                .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Done", null)
-                .create();
-
-        dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(accent);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(muted);
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                for (int i = 0; i < reorderItems.size(); i++) {
-                    reorderItems.get(i).order = (i + 1) * 10;
-                }
-                items.clear();
-                items.addAll(reorderItems);
-                saveItems();
-                dialog.dismiss();
-                rebuildList();
-                recalc();
-            });
+        reordering = false;
+        reorderItems = null;
+        addButton.setText("+ Item");
+        addButton.setOnClickListener(v -> {
+            ShoppingItem item = new ShoppingItem();
+            item.order = nextOrder();
+            item.qty = 1;
+            items.add(item);
+            saveItems();
+            focusAfterRebuild = item;
+            rebuildList();
+            recalc();
         });
-        dialog.show();
+        menuButton.setText("⋮");
+        menuButton.setTextSize(22);
+        menuButton.setOnClickListener(v -> showActionsMenu(menuButton));
+        rebuildList();
+        recalc();
     }
 
     private void addReorderRow(LinearLayout rows, ArrayList<ShoppingItem> reorderItems, ShoppingItem item) {
@@ -393,6 +402,11 @@ public class MainActivity extends Activity {
 
     private void rebuildList() {
         rebuilding = true;
+        if (reordering) {
+            rebuildReorderList();
+            rebuilding = false;
+            return;
+        }
         sortItems();
         list.removeAllViews();
         ArrayList<ItemInput> itemInputs = new ArrayList<>();
@@ -568,6 +582,21 @@ public class MainActivity extends Activity {
         wireItemFieldNavigation(itemInputs);
 
         rebuilding = false;
+    }
+
+    private void rebuildReorderList() {
+        list.removeAllViews();
+        list.addView(label("Drag the handle to move an item.", 14, muted, false), matchWrap(bottom(8)));
+        if (reorderItems == null || reorderItems.isEmpty()) {
+            TextView empty = label("No items yet.", 16, muted, false);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, dp(24), 0, dp(24));
+            list.addView(empty);
+            return;
+        }
+        for (ShoppingItem item : reorderItems) {
+            addReorderRow(list, reorderItems, item);
+        }
     }
 
     private void addCompletedItemCard(ShoppingItem item) {
