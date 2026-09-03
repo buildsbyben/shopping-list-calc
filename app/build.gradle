@@ -23,8 +23,16 @@ android {
         applicationId "io.github.buildsbyben.shoppinglistcalc"
         minSdk 23
         targetSdk 35
-        versionCode 13
-        versionName "1.12"
+        versionCode 14
+        versionName "1.13"
+    }
+
+    // F-Droid rejects APKs containing AGP's dependency-metadata signing block.
+    // The dependency graph remains in the public source; it does not need to
+    // be embedded in the distributable APK.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     buildTypes {

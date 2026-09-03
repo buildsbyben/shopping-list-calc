@@ -1,0 +1,1 @@
+Remove embedded build dependency metadata so the release APK can be verified by F-Droid.
