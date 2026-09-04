@@ -3,6 +3,7 @@ package io.github.buildsbyben.shoppinglistcalc;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.Rect;
@@ -27,15 +28,13 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final String PREFS = "shopping_calc";
     private final ArrayList<ShoppingItem> items = new ArrayList<>();
-    private final NumberFormat money = NumberFormat.getCurrencyInstance(Locale.US);
+    private CurrencyFormat money;
     private ShoppingListStore store;
     private ScrollView scroll;
     private LinearLayout scrollContent;
@@ -51,6 +50,8 @@ public class MainActivity extends Activity {
     private double taxRate;
     private double budget;
     private boolean formattingPrice;
+    private boolean quickCentsEntry;
+    private boolean quickEntry;
     private boolean reordering;
     private ArrayList<ShoppingItem> reorderItems;
 
@@ -79,6 +80,18 @@ public class MainActivity extends Activity {
         buildUi();
         rebuildList();
         recalc();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (store != null) {
+            load();
+            if (list != null) {
+                rebuildList();
+                recalc();
+            }
+        }
     }
 
     private void buildUi() {
@@ -198,7 +211,7 @@ public class MainActivity extends Activity {
         menu.setOnMenuItemClickListener(item -> {
             String title = item.getTitle().toString();
             if ("Settings".equals(title)) {
-                showSettingsDialog();
+                startActivity(new Intent(this, SettingsActivity.class));
                 return true;
             }
             if ("Edit List".equals(title)) {
@@ -220,40 +233,6 @@ public class MainActivity extends Activity {
             return false;
         });
         menu.show();
-    }
-
-    private void showSettingsDialog() {
-        EditText taxInput = input("Tax %", true);
-        taxInput.setText(trimNumber(taxRate));
-
-        EditText budgetInput = input("Budget", true);
-        budgetInput.setText(budget == 0 ? "" : trimNumber(budget));
-
-        LinearLayout wrap = column();
-        wrap.setPadding(dp(18), dp(8), dp(18), 0);
-        wrap.addView(field("Tax rate", taxInput), matchWrap(new LinearLayout.LayoutParams(0, 0)));
-        wrap.addView(field("Budget", budgetInput), matchWrap(top(10)));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Settings")
-                .setView(wrap)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(accent);
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                taxRate = parseDouble(taxInput, 0);
-                budget = parseDouble(budgetInput, 0);
-                saveSettings();
-                dialog.dismiss();
-                rebuildUi();
-            });
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(muted);
-        });
-
-        dialog.show();
     }
 
     private void showListViewDialog() {
@@ -552,7 +531,9 @@ public class MainActivity extends Activity {
             price.addTextChangedListener(new SimpleWatcher() {
                 @Override
                 public void afterTextChanged(Editable s) {
-                    formatMoneyAsCents(price);
+                    if (quickCentsEntry) {
+                        formatMoneyAsCents(price);
+                    }
                 }
             });
 
@@ -585,6 +566,8 @@ public class MainActivity extends Activity {
             price.setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus) {
                     scrollInputIntoView(price);
+                } else if (!quickCentsEntry) {
+                    formatPriceInput(price);
                 }
             });
             if (weight != null) {
@@ -615,8 +598,8 @@ public class MainActivity extends Activity {
                 if (item.byWeight && weight != null) {
                     item.qty = Math.max(0, parseDouble(weight, 0));
                 }
-                if (!item.isReadyForCart()) {
-                    if (item.name.isEmpty()) {
+                if (!item.isReadyForCart(quickEntry)) {
+                    if (item.name.isEmpty() && !quickEntry) {
                         name.setError("Add an item name");
                     } else if (item.price <= 0) {
                         price.setError("Add a price");
@@ -633,7 +616,8 @@ public class MainActivity extends Activity {
 
             if (item == focusAfterRebuild) {
                 focusAfterRebuild = null;
-                name.postDelayed(() -> focusAndShowKeyboard(name), 120);
+                EditText focus = quickEntry ? price : name;
+                focus.postDelayed(() -> focusAndShowKeyboard(focus), 120);
             }
         }
 
@@ -710,8 +694,15 @@ public class MainActivity extends Activity {
                 }
                 if (current.field == 1) {
                     formatPriceInput(current.input);
+                    if (quickEntry && isLastIncompleteItem(current.item)) {
+                        ShoppingItem item = addItemAfter(current.item);
+                        focusAfterRebuild = item;
+                        rebuildList();
+                        recalc();
+                        return true;
+                    }
                 }
-                if (current.field == 2 && index == itemInputs.size() - 1) {
+                if (current.field == 2 && isLastIncompleteItem(current.item)) {
                     ShoppingItem item = addItemAfter(current.item);
                     focusAfterRebuild = item;
                     rebuildList();
@@ -725,6 +716,16 @@ public class MainActivity extends Activity {
                 return true;
             });
         }
+    }
+
+    private boolean isLastIncompleteItem(ShoppingItem candidate) {
+        ShoppingItem last = null;
+        for (ShoppingItem item : items) {
+            if (!item.inCart) {
+                last = item;
+            }
+        }
+        return candidate == last;
     }
 
     private ShoppingItem addItemAfter(ShoppingItem after) {
@@ -1130,6 +1131,9 @@ public class MainActivity extends Activity {
     private void load() {
         taxRate = store.taxRate();
         budget = store.budget();
+        money = store.currencyFormat();
+        quickCentsEntry = store.quickCentsEntry();
+        quickEntry = store.quickEntry();
         store.loadItems(items);
     }
 
@@ -1146,22 +1150,8 @@ public class MainActivity extends Activity {
     }
 
     private double parseMoney(EditText input, double fallback) {
-        String raw = input.getText().toString().trim();
-        if (raw.isEmpty()) {
-            return fallback;
-        }
-        String cleaned = raw.replaceAll("[^0-9.]", "");
-        if (cleaned.isEmpty()) {
-            return fallback;
-        }
-        try {
-            if (!cleaned.contains(".")) {
-                return Long.parseLong(cleaned) / 100.0;
-            }
-            return Double.parseDouble(cleaned);
-        } catch (NumberFormatException ex) {
-            return fallback;
-        }
+        String raw = input.getText().toString();
+        return quickCentsEntry ? money.parseQuick(raw, fallback) : money.parseDirect(raw, fallback);
     }
 
     private void formatPriceInput(EditText input) {

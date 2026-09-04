@@ -12,7 +12,7 @@ final class ShoppingItem {
         return price * qty;
     }
 
-    boolean isReadyForCart() {
-        return !name.trim().isEmpty() && price > 0 && qty > 0;
+    boolean isReadyForCart(boolean allowUnnamed) {
+        return (allowUnnamed || !name.trim().isEmpty()) && price > 0 && qty > 0;
     }
 }
