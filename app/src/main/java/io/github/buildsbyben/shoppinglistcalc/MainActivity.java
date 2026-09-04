@@ -503,8 +503,11 @@ public class MainActivity extends Activity {
             LinearLayout fields = row();
             card.addView(fields, matchWrap(top(ShoppingStyle.FIELD_GAP_DP)));
 
-            EditText price = input(item.byWeight ? "Price/lb" : "Price", true);
-            price.setText(money.format(item.price));
+            boolean blankDirectPrice = !quickCentsEntry && item.price == 0 && item.name.trim().isEmpty() && !item.inCart;
+            EditText price = input(blankDirectPrice ? "" : (item.byWeight ? "Price/lb" : "Price"), true);
+            if (!blankDirectPrice) {
+                price.setText(money.format(item.price));
+            }
             fields.addView(inputBox(price), weightWrap(1));
             itemInputs.add(new ItemInput(item, price, 1));
 
