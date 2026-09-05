@@ -48,7 +48,7 @@ public class SettingsActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(bg);
         rows = column(); rows.setPadding(dp(16), dp(8), dp(16), dp(28)); scroll.addView(rows);
         screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        section("Budget"); addBudgetSettings();
+        section("Budget and tax"); addBudgetAndTaxSettings();
         section("Money"); addCurrencySettings();
         section("Price entry");
         priceChoices = radios(); addRadio(priceChoices, "Direct amount entry", "Type an amount normally, such as 12.50 or 12,50.", !store.quickCentsEntry()); addRadio(priceChoices, "Quick cents entry", "Digits shift into cents as you type.", store.quickCentsEntry());
@@ -63,10 +63,6 @@ public class SettingsActivity extends Activity {
         addRadio(weightChoices, "Ounces (oz)", "Useful for smaller US measurements.", "oz".equals(store.weightUnit()));
         addRadio(weightChoices, "Grams (g)", "Useful for smaller metric measurements.", "g".equals(store.weightUnit()));
         rows.addView(weightChoices);
-        section("Tax");
-        LinearLayout taxCard = card();
-        LinearLayout taxField = column(); taxField.addView(label("Tax rate (%)", 16, text, true)); taxInput = input("", trimNumber(store.taxRate()), true); taxField.addView(taxInput, top(5));
-        taxCard.addView(taxField); rows.addView(taxCard);
         section("About"); LinearLayout about = card(); about.addView(label("Shopping List Calculator", 17, text, true)); TextView version = label("Version " + appVersion(), 13, muted, false); version.setPadding(0, dp(3), 0, dp(9)); about.addView(version);
         Button github = button("GitHub repository"); github.setOnClickListener(v -> openUrl("https://github.com/buildsbyben/shopping-list-calc")); about.addView(github);
         Button issues = button("Report an issue"); issues.setOnClickListener(v -> openUrl("https://github.com/buildsbyben/shopping-list-calc/issues")); about.addView(issues, top(8));
@@ -75,13 +71,19 @@ public class SettingsActivity extends Activity {
         setContentView(screen);
     }
 
-    private void addBudgetSettings() {
-        LinearLayout budgetCard = card();
-        LinearLayout budgetField = column(); budgetField.addView(label("Budget", 16, text, true));
+    private void addBudgetAndTaxSettings() {
+        LinearLayout settingsCard = card();
+        LinearLayout fields = new LinearLayout(this); fields.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout taxField = column(); taxField.addView(label("Tax rate (%)", 16, text, true));
+        taxInput = input("", trimNumber(store.taxRate()), true); taxField.addView(taxInput, top(5));
         budgetFormat = store.currencyFormat();
+        LinearLayout budgetField = column(); budgetField.addView(label("Budget", 16, text, true));
         budgetInput = input("", store.budget() == 0 ? "" : formatBudget(store.budget(), budgetFormat), false);
         budgetField.addView(budgetInput, top(5));
-        budgetCard.addView(budgetField); rows.addView(budgetCard);
+        LinearLayout.LayoutParams taxParams = new LinearLayout.LayoutParams(0, -2, 1);
+        LinearLayout.LayoutParams budgetParams = new LinearLayout.LayoutParams(0, -2, 1); budgetParams.leftMargin = dp(10);
+        fields.addView(taxField, taxParams); fields.addView(budgetField, budgetParams);
+        settingsCard.addView(fields); rows.addView(settingsCard);
     }
 
     private void addCurrencySettings() {
