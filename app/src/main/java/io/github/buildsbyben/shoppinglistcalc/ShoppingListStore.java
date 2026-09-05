@@ -19,6 +19,7 @@ final class ShoppingListStore {
     private static final String KEY_FRACTION_DIGITS = "fraction_digits";
     private static final String KEY_PRICE_ENTRY_MODE = "price_entry_mode";
     private static final String KEY_QUICK_ENTRY = "quick_entry";
+    private static final String KEY_WEIGHT_UNIT = "weight_unit";
 
     private final SharedPreferences preferences;
 
@@ -76,6 +77,15 @@ final class ShoppingListStore {
 
     void saveQuickEntry(boolean enabled) {
         preferences.edit().putBoolean(KEY_QUICK_ENTRY, enabled).apply();
+    }
+
+    String weightUnit() {
+        String unit = preferences.getString(KEY_WEIGHT_UNIT, "lb");
+        return "kg".equals(unit) || "oz".equals(unit) || "g".equals(unit) ? unit : "lb";
+    }
+
+    void saveWeightUnit(String unit) {
+        preferences.edit().putString(KEY_WEIGHT_UNIT, unit).apply();
     }
 
     void loadItems(List<ShoppingItem> destination) {

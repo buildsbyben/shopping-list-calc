@@ -54,6 +54,20 @@ public class MainActivity extends Activity {
     private boolean quickEntry;
     private boolean reordering;
     private ArrayList<ShoppingItem> reorderItems;
+    private String weightUnit;
+    private int reorderAutoScrollDirection;
+    private final Runnable reorderAutoScroller = new Runnable() {
+        @Override public void run() {
+            if (scroll == null || reorderAutoScrollDirection == 0) {
+                return;
+            }
+            int before = scroll.getScrollY();
+            scroll.scrollBy(0, reorderAutoScrollDirection * dp(12));
+            if (scroll.getScrollY() != before) {
+                scroll.postDelayed(this, 16);
+            }
+        }
+    };
 
     private final int bg = ShoppingStyle.BACKGROUND;
     private final int inputBg = ShoppingStyle.INPUT_BACKGROUND;
@@ -323,7 +337,7 @@ public class MainActivity extends Activity {
         LinearLayout details = column();
         TextView name = label(item.name.isEmpty() ? "Unnamed item" : item.name, 16, text, true);
         details.addView(name);
-        String quantity = item.byWeight ? trimNumber(item.qty) + " lb" : "Qty " + trimNumber(item.qty);
+        String quantity = item.byWeight ? trimNumber(item.qty) + " " + weightUnit : "Qty " + trimNumber(item.qty);
         details.addView(label(money.format(item.price) + " · " + quantity, 13, muted, false));
         row.addView(details, weightWrap(1));
 
@@ -367,6 +381,35 @@ public class MainActivity extends Activity {
         return started;
     }
 
+    private void updateReorderAutoScroll(View target, DragEvent event) {
+        if (scroll == null) {
+            return;
+        }
+        int[] targetLocation = new int[2];
+        int[] scrollLocation = new int[2];
+        target.getLocationOnScreen(targetLocation);
+        scroll.getLocationOnScreen(scrollLocation);
+        float yInViewport = targetLocation[1] + event.getY() - scrollLocation[1];
+        int edge = dp(56);
+        int direction = yInViewport < edge ? -1
+                : yInViewport > scroll.getHeight() - edge ? 1 : 0;
+        if (direction == reorderAutoScrollDirection) {
+            return;
+        }
+        reorderAutoScrollDirection = direction;
+        scroll.removeCallbacks(reorderAutoScroller);
+        if (direction != 0) {
+            scroll.post(reorderAutoScroller);
+        }
+    }
+
+    private void stopReorderAutoScroll() {
+        reorderAutoScrollDirection = 0;
+        if (scroll != null) {
+            scroll.removeCallbacks(reorderAutoScroller);
+        }
+    }
+
     private View reorderPlaceholder() {
         View placeholder = new View(this);
         GradientDrawable outline = new GradientDrawable();
@@ -394,10 +437,12 @@ public class MainActivity extends Activity {
             return true;
         }
         if (event.getAction() == DragEvent.ACTION_DRAG_LOCATION) {
+            updateReorderAutoScroll(target, event);
             movePlaceholder(rows, drag.placeholder, targetTop + event.getY());
             return true;
         }
         if (event.getAction() == DragEvent.ACTION_DROP) {
+            stopReorderAutoScroll();
             if (drag.finished) {
                 return true;
             }
@@ -411,6 +456,7 @@ public class MainActivity extends Activity {
             return true;
         }
         if (event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
+            stopReorderAutoScroll();
             if (!drag.finished && rows.indexOfChild(drag.placeholder) >= 0) {
                 int destination = rows.indexOfChild(drag.placeholder);
                 rows.removeView(drag.placeholder);
@@ -503,9 +549,11 @@ public class MainActivity extends Activity {
             LinearLayout fields = row();
             card.addView(fields, matchWrap(top(ShoppingStyle.FIELD_GAP_DP)));
 
-            boolean blankDirectPrice = !quickCentsEntry && item.price == 0 && item.name.trim().isEmpty() && !item.inCart;
-            EditText price = input(blankDirectPrice ? "" : (item.byWeight ? "Price/lb" : "Price"), true);
-            if (!blankDirectPrice) {
+            boolean blankPrice = item.price == 0 && item.name.trim().isEmpty() && !item.inCart;
+            EditText price = input(blankPrice ? "" : (item.byWeight ? "Price/" + weightUnit : "Price"), true);
+            if (blankPrice) {
+                price.setText(priceStartText());
+            } else {
                 price.setText(money.format(item.price));
             }
             fields.addView(inputBox(price), weightWrap(1));
@@ -515,7 +563,7 @@ public class MainActivity extends Activity {
             if (item.byWeight) {
                 weight = input("Weight", true);
                 weight.setText(item.qty == 0 ? "" : trimNumber(item.qty));
-                fields.addView(fieldBox("Lb", weight), weightWrap(1, left(ShoppingStyle.FIELD_GAP_DP)));
+                fields.addView(fieldBox(weightUnit, weight), weightWrap(1, left(ShoppingStyle.FIELD_GAP_DP)));
                 itemInputs.add(new ItemInput(item, weight, 2));
             } else {
                 if (item.qty < 1) {
@@ -525,7 +573,7 @@ public class MainActivity extends Activity {
                 fields.addView(quantityControl(item), weightWrap(1, left(8)));
             }
 
-            Button mode = button(item.byWeight ? "Lbs" : "Qty", panelSoft, panelIcon);
+            Button mode = button(item.byWeight ? weightUnit : "Qty", panelSoft, panelIcon);
             mode.setTextSize(12);
             LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(dp(52), dp(ShoppingStyle.CONTROL_HEIGHT_DP));
             modeParams.leftMargin = dp(ShoppingStyle.FIELD_GAP_DP);
@@ -582,7 +630,10 @@ public class MainActivity extends Activity {
             }
             mode.setOnClickListener(v -> {
                 item.byWeight = !item.byWeight;
-                if (!item.byWeight && item.qty == 0) {
+                if (item.byWeight) {
+                    // A measured amount is intentionally unknown until entered.
+                    item.qty = 0;
+                } else if (item.qty == 0) {
                     item.qty = 1;
                 }
                 saveItems();
@@ -679,7 +730,7 @@ public class MainActivity extends Activity {
 
     private String completedItemDetails(ShoppingItem item) {
         if (item.byWeight) {
-            return trimNumber(item.qty) + " lb × " + money.format(item.price) + "/lb = "
+            return trimNumber(item.qty) + " " + weightUnit + " × " + money.format(item.price) + "/" + weightUnit + " = "
                     + money.format(item.price * item.qty);
         }
         return trimNumber(item.qty) + " × " + money.format(item.price) + " = "
@@ -934,11 +985,26 @@ public class MainActivity extends Activity {
         if (scroll != null) {
             scroll.postDelayed(() -> {
                 Rect rect = new Rect();
-                input.getDrawingRect(rect);
-                scroll.offsetDescendantRectToMyCoords(input, rect);
-                scroll.smoothScrollTo(0, Math.max(0, rect.top - dp(12)));
+                View itemCard = itemCardFor(input);
+                itemCard.getDrawingRect(rect);
+                scroll.offsetDescendantRectToMyCoords(itemCard, rect);
+                int padding = dp(12);
+                int viewportHeight = scroll.getHeight();
+                int visibleHeight = viewportHeight - padding * 2;
+                int targetTop = rect.height() <= visibleHeight
+                        ? rect.top - padding
+                        : rect.top;
+                scroll.smoothScrollTo(0, Math.max(0, targetTop));
             }, 260);
         }
+    }
+
+    private View itemCardFor(View input) {
+        View current = input;
+        while (current.getParent() instanceof View && current.getParent() != list) {
+            current = (View) current.getParent();
+        }
+        return current;
     }
 
     private TextView label(String value, int size, int color, boolean bold) {
@@ -1137,6 +1203,7 @@ public class MainActivity extends Activity {
         money = store.currencyFormat();
         quickCentsEntry = store.quickCentsEntry();
         quickEntry = store.quickEntry();
+        weightUnit = store.weightUnit();
         store.loadItems(items);
     }
 
@@ -1158,12 +1225,27 @@ public class MainActivity extends Activity {
     }
 
     private void formatPriceInput(EditText input) {
+        if (priceHasNoAmount(input)) {
+            if (!priceStartText().equals(input.getText().toString())) {
+                input.setText(priceStartText());
+            }
+            return;
+        }
         double value = parseMoney(input, 0);
         String formatted = money.format(value);
         if (!formatted.equals(input.getText().toString())) {
             input.setText(formatted);
             input.setSelection(input.getText().length());
         }
+    }
+
+    private String priceStartText() {
+        return money.symbol;
+    }
+
+    private boolean priceHasNoAmount(EditText input) {
+        String raw = input.getText().toString().replace(money.symbol, "").trim();
+        return raw.replaceAll("\\D", "").isEmpty();
     }
 
     private void formatMoneyAsCents(EditText input) {
@@ -1179,7 +1261,7 @@ public class MainActivity extends Activity {
         } catch (NumberFormatException ignored) {
             // Keep the input usable if an unusually long number is pasted.
         }
-        String formatted = money.format(cents / 100.0);
+        String formatted = digits.isEmpty() ? priceStartText() : money.format(cents / 100.0);
         if (!formatted.equals(input.getText().toString())) {
             formattingPrice = true;
             input.setText(formatted);

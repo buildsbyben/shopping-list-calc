@@ -29,7 +29,7 @@ public class SettingsActivity extends Activity {
     private ShoppingListStore store;
     private LinearLayout rows, customFormat;
     private EditText symbol, decimal, grouping, digits, taxInput, budgetInput;
-    private RadioGroup symbolPosition, currencyChoices, priceChoices, flowChoices;
+    private RadioGroup symbolPosition, currencyChoices, priceChoices, flowChoices, weightChoices;
     private CurrencyFormat budgetFormat;
 
     @Override public void onCreate(Bundle state) {
@@ -52,9 +52,16 @@ public class SettingsActivity extends Activity {
         section("Price entry");
         priceChoices = radios(); addRadio(priceChoices, "Direct amount entry", "Type an amount normally, such as 12.50 or 12,50.", !store.quickCentsEntry()); addRadio(priceChoices, "Quick cents entry", "Digits shift into cents as you type.", store.quickCentsEntry());
         rows.addView(priceChoices);
-        section("Shopping flow");
-        flowChoices = radios(); addRadio(flowChoices, "Standard", "New items start at their name.", !store.quickEntry()); addRadio(flowChoices, "Quick entry", "New items start at price. Next adds another item.", store.quickEntry());
+        section("New item focus");
+        flowChoices = radios(); addRadio(flowChoices, "Name first", "New items start at the item name field.", !store.quickEntry()); addRadio(flowChoices, "Price first", "New items start at the price field. Next adds another item.", store.quickEntry());
         rows.addView(flowChoices);
+        section("Weight unit");
+        weightChoices = radios();
+        addRadio(weightChoices, "Pounds (lb)", "Common in the United States.", "lb".equals(store.weightUnit()));
+        addRadio(weightChoices, "Kilograms (kg)", "Common in most countries.", "kg".equals(store.weightUnit()));
+        addRadio(weightChoices, "Ounces (oz)", "Useful for smaller US measurements.", "oz".equals(store.weightUnit()));
+        addRadio(weightChoices, "Grams (g)", "Useful for smaller metric measurements.", "g".equals(store.weightUnit()));
+        rows.addView(weightChoices);
         section("Budget and tax");
         LinearLayout budgetCard = card();
         LinearLayout budgetFields = new LinearLayout(this); budgetFields.setOrientation(LinearLayout.HORIZONTAL);
@@ -105,6 +112,7 @@ public class SettingsActivity extends Activity {
         store.saveCurrencyFormat(format);
         store.saveQuickCentsEntry(selectedIndex(priceChoices) == 1);
         store.saveQuickEntry(selectedIndex(flowChoices) == 1);
+        store.saveWeightUnit(new String[]{"lb", "kg", "oz", "g"}[Math.max(0, selectedIndex(weightChoices))]);
         store.saveSettings(parseDouble(taxInput.getText().toString()), parseBudget(budgetInput.getText().toString(), budgetFormat));
         return true;
     }
