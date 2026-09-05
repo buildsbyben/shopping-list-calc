@@ -748,7 +748,10 @@ public class MainActivity extends Activity {
                 }
                 if (current.field == 1) {
                     formatPriceInput(current.input);
-                    if (quickEntry && isLastIncompleteItem(current.item)) {
+                    // Finishing the price on the final item always starts the next item.
+                    // The saved new-item focus preference decides whether that item opens
+                    // at its name or price field; quick cents only changes price formatting.
+                    if (isLastIncompleteItem(current.item)) {
                         ShoppingItem item = addItemAfter(current.item);
                         focusAfterRebuild = item;
                         rebuildList();
