@@ -1,0 +1,2 @@
+New entry controls, including selectable name- or price-first focus and Enter-to-add after a price.
+Improved drag reordering with edge scrolling, clearer currency and weight settings, and an updated budget/tax layout.
