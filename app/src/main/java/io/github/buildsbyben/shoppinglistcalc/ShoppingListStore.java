@@ -6,6 +6,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.List;
 
 final class ShoppingListStore {
@@ -20,6 +21,7 @@ final class ShoppingListStore {
     private static final String KEY_PRICE_ENTRY_MODE = "price_entry_mode";
     private static final String KEY_QUICK_ENTRY = "quick_entry";
     private static final String KEY_WEIGHT_UNIT = "weight_unit";
+    private static final String KEY_SAVED_LISTS = "saved_lists";
 
     private final SharedPreferences preferences;
 
@@ -126,5 +128,53 @@ final class ShoppingListStore {
             }
         }
         preferences.edit().putString(KEY_ITEMS, array.toString()).apply();
+    }
+
+    ArrayList<SavedList> savedLists() {
+        ArrayList<SavedList> lists = new ArrayList<>();
+        String raw = preferences.getString(KEY_SAVED_LISTS, "[]");
+        try {
+            JSONArray array = new JSONArray(raw);
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject object = array.getJSONObject(i);
+                String name = object.optString("name").trim();
+                if (name.isEmpty()) {
+                    continue;
+                }
+                ArrayList<String> names = new ArrayList<>();
+                JSONArray items = object.optJSONArray("items");
+                if (items != null) {
+                    for (int j = 0; j < items.length(); j++) {
+                        String itemName = items.optString(j).trim();
+                        if (!itemName.isEmpty()) {
+                            names.add(itemName);
+                        }
+                    }
+                }
+                lists.add(new SavedList(name, names));
+            }
+        } catch (JSONException ignored) {
+            // Invalid saved-list data should not prevent the main list loading.
+        }
+        return lists;
+    }
+
+    void saveSavedLists(List<SavedList> lists) {
+        JSONArray array = new JSONArray();
+        for (SavedList list : lists) {
+            JSONObject object = new JSONObject();
+            JSONArray items = new JSONArray();
+            for (String itemName : list.itemNames) {
+                items.put(itemName);
+            }
+            try {
+                object.put("name", list.name);
+                object.put("items", items);
+                array.put(object);
+            } catch (JSONException ignored) {
+                // Keep saving the remaining valid lists.
+            }
+        }
+        preferences.edit().putString(KEY_SAVED_LISTS, array.toString()).apply();
     }
 }
