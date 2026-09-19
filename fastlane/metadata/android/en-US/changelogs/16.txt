@@ -1,0 +1,4 @@
+Save named shopping-list templates containing item names only.
+Load a template by adding it to your current list or replacing the list.
+Overwrite, rename, edit, or delete saved templates.
+Reorganized menu with Saved lists and Clear / Delete list controls.
