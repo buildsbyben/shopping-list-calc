@@ -1,4 +1,5 @@
-Save named shopping-list templates containing item names only.
-Load a template by adding it to your current list or replacing the list.
-Overwrite, rename, edit, or delete saved templates.
-Reorganized menu with Saved lists and Clear / Delete list controls.
+Save your regular shopping lists and reuse them on future trips.
+Add a saved list to your current trip or start a new trip with it.
+Rename, update, or delete saved lists whenever you need to.
+Saved lists keep item names so you can enter fresh prices each trip.
+Find saved lists and options to clear your current trip in the updated menu.
