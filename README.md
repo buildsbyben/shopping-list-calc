@@ -1,3 +1,5 @@
+ <img src="docs/screenshots/Shopping List Calculator.png" alt="Shopping list Calculator Cover Photo">
+
 # Shopping List Calculator
 
 Shopping List Calculator is a small, offline Android app for planning a grocery run
