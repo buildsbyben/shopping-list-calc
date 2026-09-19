@@ -128,15 +128,16 @@ F-Droid listing text and images live in `fastlane/metadata/android/en-US/`:
 - `short_description.txt` and `full_description.txt`: summary and feature list.
 - `changelogs/<versionCode>.txt`: release-specific “What's new” text.
 - `images/phoneScreenshots/`: numbered listing screenshots, in display order.
+- `images/featureGraphic.png`: 1024 × 500 cover banner for supported F-Droid clients.
 
 README screenshots are separate files in `docs/screenshots/`; update both sets
 when refreshing the app screenshots.
 
-The saved-lists branch includes a prepared `changelogs/16.txt`. Before releasing,
-assign the next unused version code in `app/build.gradle` (currently still 15)
-and a new version name. If that code is not 16, rename the prepared changelog to
-match. Keep the published version 15 changelog unchanged. Listing updates become
-available through F-Droid's release processing, not simply by pushing this branch.
+Version 2.1 uses version code 16 and `changelogs/16.txt`. For future releases,
+assign a new version name and an unused, increasing version code in
+`app/build.gradle`, then add a matching changelog. Keep published changelogs
+unchanged. Listing updates become available through F-Droid's release processing,
+not simply by pushing a branch.
 
 ## Project details
 
