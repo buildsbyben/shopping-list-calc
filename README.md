@@ -40,14 +40,19 @@ Editing or deleting a saved template does not change the current shopping list.
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/shopping-list-active-items.png" alt="Active shopping list with price, quantity, and weight-based item controls" width="240">
-  <img src="docs/screenshots/shopping-list-completed-item.png" alt="Completed shopping item condensed below active items" width="240">
-  <img src="docs/screenshots/shopping-list-menu.png" alt="Shopping List Calculator overflow menu" width="240">
+  <img src="docs/screenshots/01-shopping-list.png" alt="Shopping list with item prices, quantities, and remaining budget" width="240">
+  <img src="docs/screenshots/02-menu.png" alt="Menu with settings, list editing, reordering, and saved lists" width="240">
+  <img src="docs/screenshots/03-settings.png" alt="Settings for budget, sales tax, currency, and price entry" width="240">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/shopping-list-settings.png" alt="Settings for sales-tax rate and shopping budget" width="240">
-  <img src="docs/screenshots/shopping-list-edit-list.png" alt="Edit List screen for changing the item order" width="240">
+  <img src="docs/screenshots/04-edit-list.png" alt="Edit shopping item names together" width="240">
+  <img src="docs/screenshots/05-reorder-items.png" alt="Drag items into shopping order" width="240">
+  <img src="docs/screenshots/06-saved-lists.png" alt="Save, load, or edit reusable shopping lists" width="240">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/07-clear-delete-list.png" alt="Clear trip values or delete the current list" width="240">
 </p>
 
 ## Privacy and data
