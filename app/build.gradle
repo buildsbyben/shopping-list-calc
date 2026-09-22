@@ -1,5 +1,6 @@
 plugins {
     id "com.android.application"
+    id "org.jetbrains.kotlin.android"
 }
 
 android {
@@ -27,6 +28,24 @@ android {
         versionName "2.1"
     }
 
+    // Enable Jetpack Compose build features
+    buildFeatures {
+        compose true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion "1.5.8"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     // F-Droid rejects APKs containing AGP's dependency-metadata signing block.
     // The dependency graph remains in the public source; it does not need to
     // be embedded in the distributable APK.
@@ -50,4 +69,21 @@ android {
             minifyEnabled false
         }
     }
+}
+
+dependencies {
+    // Import the Compose BOM to align version management
+    def composeBom = platform("androidx.compose:compose-bom:2024.02.01")
+    implementation composeBom
+    androidTestImplementation composeBom
+
+    // Compose Foundation & Material 3 components
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-graphics"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.activity:activity-compose:1.8.2"
+
+    // Android Studio Layout Inspector & Preview tooling
+    debugImplementation "androidx.compose.ui:ui-tooling"
 }
