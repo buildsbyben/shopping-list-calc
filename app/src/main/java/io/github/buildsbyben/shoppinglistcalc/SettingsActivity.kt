@@ -342,7 +342,7 @@ class SettingsActivity : ComponentActivity() {
                     context.startActivity(
                         Intent(
                             Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/buildsbyben/shopping-list-calculator")
+                            Uri.parse("https://github.com/buildsbyben/shopping-list-calc")
                         )
                     )
                 }
@@ -354,7 +354,7 @@ class SettingsActivity : ComponentActivity() {
                     context.startActivity(
                         Intent(
                             Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/buildsbyben/shopping-list-calculator/issues")
+                            Uri.parse("https://github.com/buildsbyben/shopping-list-calc/issues")
                         )
                     )
                 }
@@ -364,7 +364,7 @@ class SettingsActivity : ComponentActivity() {
                 TextLinkButton(text = "GET UPDATES ON F-DROID") {
                     context.startActivity(
                         Intent(
-                            Intent.ACTION_VIEW, Uri.parse("https://f-droid.org")
+                            Intent.ACTION_VIEW, Uri.parse("https://f-droid.org/packages/io.github.buildsbyben.shoppinglistcalc/")
                         )
                     )
                 }
