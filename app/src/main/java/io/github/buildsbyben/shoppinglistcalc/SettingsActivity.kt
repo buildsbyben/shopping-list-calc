@@ -3,30 +3,49 @@ package io.github.buildsbyben.shoppinglistcalc
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.compose.foundation.layout.*
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,13 +63,10 @@ class SettingsActivity : ComponentActivity() {
                 )
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.Black
+                    modifier = Modifier.fillMaxSize(), color = Color.Black
                 ) {
                     RenderSettingsScreen(
-                        store = store,
-                        onSave = { finish() }
-                    )
+                        store = store, onSave = { finish() })
                 }
             }
         }
@@ -77,6 +93,7 @@ class SettingsActivity : ComponentActivity() {
 
 
     //For performance
+
     @Composable
     private fun BudgetTaxSection(
         taxRate: String,
@@ -91,7 +108,12 @@ class SettingsActivity : ComponentActivity() {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Tax rate (%)", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Tax rate (%)",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(modifier = Modifier.height(6.dp))
                 CustomOutlinedTextField(value = taxRate, onValueChange = onTaxChange)
             }
@@ -106,8 +128,7 @@ class SettingsActivity : ComponentActivity() {
 
     @Composable
     private fun RenderSettingsScreen(
-        store: ShoppingListStore,
-        onSave: () -> Unit
+        store: ShoppingListStore, onSave: () -> Unit
     ) {
         val context = LocalContext.current
 
@@ -125,206 +146,198 @@ class SettingsActivity : ComponentActivity() {
         // Currency
 
 
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                //.verticalScroll(rememberScrollState()) fn
-                .padding(16.dp)
+                .padding(2.dp)
+                .padding(horizontal = 16.dp)
+                .statusBarsPadding()
         ) {
-            item{
-                // Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black)
+                    .padding(bottom = 1.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Settings",
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(27.dp))
+
+                Button(
+                    onClick = {
+                        // Save changes back to ShoppingListStore
+                        store.saveSettings(
+                            taxRate.toDoubleOrNull() ?: 0.0, budget.toDoubleOrNull() ?: 0.0
+                        )
+                        store.saveQuickCentsEntry(quickCents)
+                        store.saveQuickEntry(quickEntry)
+                        store.saveWeightUnit(weightUnit)
+                        val updatedFormat = CurrencyFormat(
+                            currencySymbol,
+                            symbolAfter,
+                            currentFormat.decimalSeparator,
+                            currentFormat.groupingSeparator,
+                            currentFormat.fractionDigits
+                        )
+                        store.saveCurrencyFormat(updatedFormat)
+                        onSave()
+                    }, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White, contentColor = Color.Black
+                    ), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                 ) {
-                    Text(
-                        text = "Settings",
-                        color = Color.White,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Button(
-                        onClick = {
-                            // Save changes back into ShoppingListStore
-                            store.saveSettings(
-                                taxRate.toDoubleOrNull() ?: 0.0,
-                                budget.toDoubleOrNull() ?: 0.0
-                            )
-                            store.saveQuickCentsEntry(quickCents)
-                            store.saveQuickEntry(quickEntry)
-                            store.saveWeightUnit(weightUnit)
-                            val updatedFormat = CurrencyFormat(
-                                currencySymbol,
-                                symbolAfter,
-                                currentFormat.decimalSeparator,
-                                currentFormat.groupingSeparator,
-                                currentFormat.fractionDigits
-                            )
-                            store.saveCurrencyFormat(updatedFormat)
-                            onSave()
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color.Black
-                        ),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-                    ) {
-                        Text(text = "SAVE", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
+                    Text(text = "SAVE", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
+
             }
 
-            // Budget and tax Section
-            item(key = "budget_tax_section") {
+        Spacer(modifier = Modifier.height(24.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+
+                    .verticalScroll(rememberScrollState())
+            ) {
+
+
+
+                // Budget and tax Section
+
                 BudgetTaxSection(
                     taxRate = taxRate,
                     onTaxChange = { taxRate = it },
                     budget = budget,
-                    onBudgetChange = { budget = it }
-                )
-            }
+                    onBudgetChange = { budget = it })
 
-            // Currency Section
-            item {
+
+                // Currency Section
+
+
                 SectionHeader(title = "Currency symbol")
-            }
 
+                currencyOptions.forEach { option ->
+                    RadioOptionRow(
+                        title = option.label,
+                        subtitle = option.subtitle,
+                        selected = currencySymbol == option.symbol,
+                        onClick = { currencySymbol = option.symbol })
+                }
 
-            items(currencyOptions, key = { it.symbol }) { option ->
-                RadioOptionRow(
-                    title = option.label,
-                    subtitle = option.subtitle,
-                    selected = currencySymbol == option.symbol,
-                    onClick = { currencySymbol = option.symbol }
-                )
-            }
-
-            item {
                 Spacer(modifier = Modifier.height(16.dp))
-            }
-            item {
+
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+
 
                 SectionHeader(title = "Currency position")
-            }
-            item {
+
+
                 RadioOptionRow(
                     title = "Before amount (e.g. $10)",
                     subtitle = "",
                     selected = !symbolAfter,
-                    onClick = { symbolAfter = false }
-                )
-            }
-            item {
+                    onClick = { symbolAfter = false })
+
+
                 RadioOptionRow(
                     title = "After amount (e.g. 10 $)",
                     subtitle = "",
                     selected = symbolAfter,
-                    onClick = { symbolAfter = true }
-                )
-            }
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+                    onClick = { symbolAfter = true })
 
-            // Price entry Section
-            item {
+
+                // Price entry Section
+
                 SectionHeader(title = "Price entry")
-            }
-            item {
+
+
                 RadioOptionRow(
                     title = "Direct amount entry",
                     subtitle = "Type an amount normally, such as 12.50 or 12,50.",
                     selected = !quickCents,
-                    onClick = { quickCents = false }
-                )
-            }
-            item {
+                    onClick = { quickCents = false })
+
+
                 RadioOptionRow(
                     title = "Quick cents entry",
                     subtitle = "Digits shift into cents as you type.",
                     selected = quickCents,
-                    onClick = { quickCents = true }
-                )
-            }
-            item {
+                    onClick = { quickCents = true })
+
+
                 Spacer(modifier = Modifier.height(16.dp))
-            }
 
-            // Item entry Section (Quick entry mapping)
-            item {
+
+                // item entry Section
+
                 SectionHeader(title = "Item entry mode")
-            }
 
-            item {
+
+
                 RadioOptionRow(
                     title = "Name first",
                     subtitle = "New items start at the item name field.",
                     selected = !quickEntry,
-                    onClick = { quickEntry = false }
-                )
-            }
-            item {
+                    onClick = { quickEntry = false })
+
+
                 RadioOptionRow(
                     title = "Price first",
                     subtitle = "New items start at the price field. Next adds another item.",
                     selected = quickEntry,
-                    onClick = { quickEntry = true }
-                )
-            }
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+                    onClick = { quickEntry = true })
 
-            // Weight unit Section
-            item {
+                Spacer(modifier = Modifier.height(16.dp))
+
+
+                // Weight unit Section
+
                 SectionHeader(title = "Weight unit")
-            }
 
-            items(
-                items = weightOptions,
-                key = { it.code }
-            ) { (code, label) ->
-                RadioOptionRow(
-                    title = label,
-                    subtitle = "",
-                    selected = weightUnit == code,
-                    onClick = { weightUnit = code }
-                )
-            }
+                weightOptions.forEach { option ->
+                    RadioOptionRow(
+                        title = option.label,
+                        subtitle = "",
+                        selected = weightUnit == option.code,
+                        onClick = { weightUnit = option.code })
+                }
 
-            item {
+
                 Spacer(modifier = Modifier.height(16.dp))
-            }
 
-            // About Section
-            item {
+
+                // About Section
+
                 SectionHeader(title = "About")
-            }
 
-            item {
+
+
                 Text(
                     "Shopping List Calculator",
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
-            }
-            item {
+
+
                 Text(
                     "Version 2.0",
                     color = Color.Gray,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(bottom = 20.dp)
                 )
-            }
 
 
-            item {
+
+
                 TextLinkButton(text = "GITHUB REPOSITORY") {
                     context.startActivity(
                         Intent(
@@ -333,9 +346,9 @@ class SettingsActivity : ComponentActivity() {
                         )
                     )
                 }
-            }
 
-            item {
+
+
 
                 TextLinkButton(text = "REPORT AN ISSUE") {
                     context.startActivity(
@@ -345,21 +358,23 @@ class SettingsActivity : ComponentActivity() {
                         )
                     )
                 }
-            }
 
-            item {
+
+
                 TextLinkButton(text = "GET UPDATES ON F-DROID") {
                     context.startActivity(
                         Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://f-droid.org")
+                            Intent.ACTION_VIEW, Uri.parse("https://f-droid.org")
                         )
                     )
                 }
-            }
-            item{
 
-            Spacer(modifier = Modifier.height(32.dp))}
+
+
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+
+
         }
     }
 }
@@ -377,29 +392,22 @@ private fun SectionHeader(title: String) {
 
 @Composable
 private fun RadioOptionRow(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit
+    title: String, subtitle: String, selected: Boolean, onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.Top
-    ) {
+    Row(modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onClick() }
+        .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.Top) {
         RadioButton(
-            selected = selected,
-            onClick = onClick,
-            colors = RadioButtonDefaults.colors(
-                selectedColor = Color.White,
-                unselectedColor = Color.White
-            ),
-            modifier = Modifier.padding(end = 12.dp)
+            selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(
+                selectedColor = Color.White, unselectedColor = Color.White
+            ), modifier = Modifier.padding(end = 12.dp)
         )
         Column {
-            Text(text = title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            Text(
+                text = title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium
+            )
             if (subtitle.isNotEmpty()) {
                 Text(text = subtitle, color = Color.Gray, fontSize = 13.sp)
             }
@@ -409,8 +417,7 @@ private fun RadioOptionRow(
 
 @Composable
 private fun CustomOutlinedTextField(
-    value: String,
-    onValueChange: (String) -> Unit
+    value: String, onValueChange: (String) -> Unit
 ) {
     BasicTextField(
         value = value,
@@ -427,8 +434,7 @@ private fun CustomOutlinedTextField(
 
 @Composable
 private fun TextLinkButton(
-    text: String,
-    onClick: () -> Unit
+    text: String, onClick: () -> Unit
 ) {
     Text(
         text = text,
@@ -438,6 +444,5 @@ private fun TextLinkButton(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 12.dp)
-    )
+            .padding(vertical = 12.dp))
 }
