@@ -133,7 +133,7 @@ class SettingsActivity : ComponentActivity() {
         val context = LocalContext.current
 
         // Load initial state
-        val scrollState = rememberLazyListState()
+
         var taxRate by remember { mutableStateOf(store.taxRate().toString()) }
         var budget by remember { mutableStateOf(store.budget().toString()) }
         var quickCents by remember { mutableStateOf(store.quickCentsEntry()) }
@@ -150,7 +150,6 @@ class SettingsActivity : ComponentActivity() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .padding(2.dp)
                 .padding(horizontal = 16.dp)
                 .statusBarsPadding()
         ) {
@@ -169,7 +168,7 @@ class SettingsActivity : ComponentActivity() {
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(27.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
                 Button(
                     onClick = {
@@ -231,11 +230,6 @@ class SettingsActivity : ComponentActivity() {
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-
 
                 SectionHeader(title = "Currency position")
 
