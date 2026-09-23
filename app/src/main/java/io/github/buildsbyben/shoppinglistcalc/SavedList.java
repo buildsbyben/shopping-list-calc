@@ -4,10 +4,10 @@ import java.util.ArrayList;
 
 final class SavedList {
     final String name;
-    final ArrayList<String> itemNames;
+    final ArrayList<String> items;
 
-    SavedList(String name, ArrayList<String> itemNames) {
+    SavedList(String name, ArrayList<String> items) {
         this.name = name;
-        this.itemNames = new ArrayList<>(itemNames);
+        this.items = new ArrayList<>(items);
     }
 }
