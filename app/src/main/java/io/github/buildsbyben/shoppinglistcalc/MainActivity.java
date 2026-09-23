@@ -855,7 +855,8 @@ public class MainActivity extends Activity {
                     if (rebuilding) {
                         return;
                     }
-                    String _text = name.getText().toString();
+                    String _text = name.getText().toString().trim();
+                    item.name = _text;
                     if (_text.contains(ShoppingItem.SEPARATOR)) {
                         int index = _text.indexOf(ShoppingItem.SEPARATOR); // to calculate cursor position when editing the text, because the following name.setText() sets the cursor back to the beginning
                         _text = _text.replace(ShoppingItem.SEPARATOR, "");
