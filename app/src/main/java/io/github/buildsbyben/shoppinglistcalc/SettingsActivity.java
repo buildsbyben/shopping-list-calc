@@ -14,7 +14,6 @@ import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
@@ -32,7 +31,6 @@ public class SettingsActivity extends Activity {
     private EditText symbol, decimal, grouping, digits, taxInput, budgetInput;
     private RadioGroup symbolPosition, currencyChoices, priceChoices, flowChoices, weightChoices;
     private CurrencyFormat budgetFormat;
-
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state); getWindow().setStatusBarColor(bg); getWindow().setNavigationBarColor(bg);
@@ -65,10 +63,6 @@ public class SettingsActivity extends Activity {
         addRadio(weightChoices, "Ounces (oz)", "Useful for smaller US measurements.", "oz".equals(store.weightUnit()));
         addRadio(weightChoices, "Grams (g)", "Useful for smaller metric measurements.", "g".equals(store.weightUnit()));
         rows.addView(weightChoices);
-        section("Saving Options");
-        CheckBox saveFullData = checkBox("Also save price and quantity when saving lists", store.isSaveFullData());
-        saveFullData.setOnClickListener( v -> store.setSaveFullData(saveFullData.isChecked()));
-        rows.addView(saveFullData);
         section("About"); LinearLayout about = card(); about.addView(label("Shopping List Calculator", 17, text, true)); TextView version = label("Version " + appVersion(), 13, muted, false); version.setPadding(0, dp(3), 0, dp(9)); about.addView(version);
         Button github = button("GitHub repository"); github.setOnClickListener(v -> openUrl("https://github.com/buildsbyben/shopping-list-calc")); about.addView(github);
         Button issues = button("Report an issue"); issues.setOnClickListener(v -> openUrl("https://github.com/buildsbyben/shopping-list-calc/issues")); about.addView(issues, top(8));
@@ -155,7 +149,6 @@ public class SettingsActivity extends Activity {
     }
     private TextView label(String value, int size, int color, boolean bold) { TextView v = new TextView(this); v.setText(value); v.setTextSize(size); v.setTextColor(color); if (bold) v.setTypeface(null, Typeface.BOLD); return v; }
     private EditText input(String hint, String value, boolean number) { EditText e = new EditText(this); e.setHint(hint); e.setText(value); e.setSingleLine(true); e.setTextColor(text); e.setHintTextColor(Color.LTGRAY); e.setPadding(dp(10), 0, dp(10), 0); GradientDrawable border = new GradientDrawable(); border.setColor(Color.TRANSPARENT); border.setStroke(dp(1), Color.WHITE); border.setCornerRadius(dp(2)); e.setBackground(border); if(number) e.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL); return e; }
-    private CheckBox checkBox(String value, boolean checked) { CheckBox c = new CheckBox(this); c.setText(value); c.setChecked(checked); return c; }
     private LinearLayout.LayoutParams top(int margin) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2); p.topMargin=dp(margin); return p; }
     private void openUrl(String url) { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
     private String appVersion() { try { return getPackageManager().getPackageInfo(getPackageName(),0).versionName; } catch(Exception e) { return ""; } }
