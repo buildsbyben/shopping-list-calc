@@ -24,7 +24,7 @@ android {
         minSdk 23
         targetSdk 35
         versionCode 16
-        versionName "2.2"
+        versionName "2.1"
     }
 
     // F-Droid rejects APKs containing AGP's dependency-metadata signing block.
