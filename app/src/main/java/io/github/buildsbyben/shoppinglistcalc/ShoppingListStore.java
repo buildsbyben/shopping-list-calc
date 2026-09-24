@@ -22,6 +22,7 @@ final class ShoppingListStore {
     private static final String KEY_QUICK_ENTRY = "quick_entry";
     private static final String KEY_WEIGHT_UNIT = "weight_unit";
     private static final String KEY_SAVED_LISTS = "saved_lists";
+    private static final String KEY_SAVE_FULL_DATA = "save_full_data";
 
     private final SharedPreferences preferences;
 
@@ -164,7 +165,7 @@ final class ShoppingListStore {
         for (SavedList list : lists) {
             JSONObject object = new JSONObject();
             JSONArray items = new JSONArray();
-            for (String itemName : list.itemNames) {
+            for (String itemName : list.items) {
                 items.put(itemName);
             }
             try {
@@ -176,5 +177,13 @@ final class ShoppingListStore {
             }
         }
         preferences.edit().putString(KEY_SAVED_LISTS, array.toString()).apply();
+    }
+
+    public void setSaveFullData(boolean saveFullData) {
+        preferences.edit().putBoolean(KEY_SAVE_FULL_DATA, saveFullData).apply();
+    }
+
+    public boolean isSaveFullData() {
+        return preferences.getBoolean(KEY_SAVE_FULL_DATA, false);
     }
 }

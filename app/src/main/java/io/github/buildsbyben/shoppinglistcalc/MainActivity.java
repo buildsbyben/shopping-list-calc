@@ -29,6 +29,7 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,7 +60,8 @@ public class MainActivity extends Activity {
     private String weightUnit;
     private int reorderAutoScrollDirection;
     private final Runnable reorderAutoScroller = new Runnable() {
-        @Override public void run() {
+        @Override
+        public void run() {
             if (scroll == null || reorderAutoScrollDirection == 0) {
                 return;
             }
@@ -339,7 +341,8 @@ public class MainActivity extends Activity {
         wrap.addView(savedListScroll, scrollParams);
 
         nameInput.addTextChangedListener(new SimpleWatcher() {
-            @Override public void afterTextChanged(Editable s) {
+            @Override
+            public void afterTextChanged(Editable s) {
                 if (s.length() > 0) {
                     savedListChoices.clearCheck();
                 }
@@ -367,7 +370,7 @@ public class MainActivity extends Activity {
             for (SavedList savedList : savedLists) {
                 if (savedList.name.equalsIgnoreCase(name)) {
                     dialog.dismiss();
-                    confirmOverwriteSavedList(new SavedList(name, savedList.itemNames));
+                    confirmOverwriteSavedList(new SavedList(name, savedList.items));
                     return;
                 }
             }
@@ -402,7 +405,7 @@ public class MainActivity extends Activity {
     }
 
     private void addSavedListToCurrent(SavedList selected) {
-        for (String name : selected.itemNames) {
+        for (String name : selected.items) {
             ShoppingItem item = new ShoppingItem();
             item.name = name;
             item.qty = 1;
@@ -416,11 +419,8 @@ public class MainActivity extends Activity {
 
     private void replaceCurrentWithSavedList(SavedList selected) {
         items.clear();
-        for (int i = 0; i < selected.itemNames.size(); i++) {
-            ShoppingItem item = new ShoppingItem();
-            item.name = selected.itemNames.get(i);
-            item.qty = 1;
-            item.order = (i + 1) * 10;
+        for (int i = 0; i < selected.items.size(); i++) {
+            ShoppingItem item = ShoppingItem.fromSavedLine(selected.items.get(i));
             items.add(item);
         }
         saveItems();
@@ -434,7 +434,7 @@ public class MainActivity extends Activity {
         nameInput.setSingleLine(true);
         nameInput.setPadding(dp(12), dp(6), dp(12), dp(6));
         EditText listInput = multilineListInput();
-        listInput.setText(joinListNames(selected.itemNames));
+        listInput.setText(joinListNames(selected.items));
         LinearLayout wrap = column();
         wrap.setPadding(dp(18), dp(8), dp(18), 0);
         wrap.addView(nameInput, dialogNameInputParams());
@@ -789,6 +789,9 @@ public class MainActivity extends Activity {
             ));
 
             EditText name = input("Item", false);
+            if (item.name.contains(ShoppingItem.SEPARATOR)) {
+                item.name = item.name.replace(ShoppingItem.SEPARATOR, "");
+            }
             name.setText(item.name);
             LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(0, dp(ShoppingStyle.CONTROL_HEIGHT_DP), 1);
             nameParams.leftMargin = dp(ShoppingStyle.FIELD_GAP_DP);
@@ -852,7 +855,16 @@ public class MainActivity extends Activity {
                     if (rebuilding) {
                         return;
                     }
-                    item.name = name.getText().toString();
+                    String _text = name.getText().toString().trim();
+                    item.name = _text;
+                    if (_text.contains(ShoppingItem.SEPARATOR)) {
+                        int index = _text.indexOf(ShoppingItem.SEPARATOR); // to calculate cursor position when editing the text, because the following name.setText() sets the cursor back to the beginning
+                        _text = _text.replace(ShoppingItem.SEPARATOR, "");
+                        item.name = _text;
+                        name.setText(_text);
+                        name.setSelection(index);
+                        Toast.makeText(MainActivity.this, String.format("'%s' is an invalid character inside the item name", ShoppingItem.SEPARATOR), Toast.LENGTH_SHORT).show();
+                    }
                     item.price = parseMoney(price, 0);
                     if (item.byWeight && weight != null) {
                         item.qty = Math.max(0, parseDouble(weight, 0));
@@ -1406,7 +1418,7 @@ public class MainActivity extends Activity {
             if (builder.length() > 0) {
                 builder.append('\n');
             }
-            builder.append(item.name);
+            builder.append(item.toSavedLine(store.isSaveFullData()));
         }
         return builder.toString();
     }
