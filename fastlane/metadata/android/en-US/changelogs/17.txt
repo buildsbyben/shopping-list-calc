@@ -1,0 +1,1 @@
+Beta: Kotlin-based settings with fixes for budget and currency handling. Release optimization keeps the app small. Existing Android Views interface and offline behavior are unchanged. Please report crashes, incorrect totals, or settings/list persistence problems.
