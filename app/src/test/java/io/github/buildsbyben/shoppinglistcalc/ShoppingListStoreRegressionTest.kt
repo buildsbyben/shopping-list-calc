@@ -160,6 +160,36 @@ class ShoppingListStoreRegressionTest {
         assertEquals("Current", current.single().name)
     }
 
+    @Test fun savedListsKeepJavaTrimRulesAndValidPrefixOnCorruption() {
+        preferences.edit().putString("saved_lists", """[
+          {"name":"\u0000 Weekly \u001f","items":["\u0000 Milk \u001f","\u2003","\u2003Bread\u2003"]},
+          42, {"name":"Not reached"}
+        ]""").commit()
+        val lists = store.savedLists()
+        assertEquals(listOf("Weekly"), lists.map { it.name })
+        assertEquals(listOf("Milk", "\u2003", "\u2003Bread\u2003"), lists.single().itemNames)
+    }
+
+    @Test fun invalidNumbersSkipOnlyInvalidItemsWhenSaving() {
+        val valid = ShoppingItem().apply { name = "Kept"; price = 2.5 }
+        val badPrice = ShoppingItem().apply { name = "Bad price"; price = Double.NaN }
+        val badQuantity = ShoppingItem().apply { name = "Bad qty"; qty = Double.POSITIVE_INFINITY }
+        store.saveItems(listOf(badPrice, valid, badQuantity, valid))
+        val loaded = arrayListOf<ShoppingItem>()
+        store.loadItems(loaded)
+        assertEquals(listOf("Kept", "Kept"), loaded.map { it.name })
+    }
+
+    @Test fun settingsRetainFloatPrecisionAndSeparatorsUseFirstCharacter() {
+        store.saveSettings(7.123456789, 123.123456789)
+        assertEquals(7.123456789.toFloat().toDouble(), store.taxRate(), 0.0)
+        assertEquals(123.123456789.toFloat().toDouble(), store.budget(), 0.0)
+        preferences.edit().putString("decimal_separator", ",extra")
+            .putString("grouping_separator", " extra").commit()
+        assertEquals(',', store.currencyFormat().decimalSeparator)
+        assertEquals(' ', store.currencyFormat().groupingSeparator)
+    }
+
     private fun assertItem(item: ShoppingItem, name: String, order: Int, price: Double,
                            quantity: Double, byWeight: Boolean, inCart: Boolean) {
         assertEquals(name, item.name)
