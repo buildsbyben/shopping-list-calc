@@ -130,8 +130,8 @@ final class ShoppingListStore {
         preferences.edit().putString(KEY_ITEMS, array.toString()).apply();
     }
 
-    ArrayList<SavedList> savedLists() {
-        ArrayList<SavedList> lists = new ArrayList<>();
+    ArrayList<ShoppingList> readSavedShoppingLists() {
+        ArrayList<ShoppingList> lists = new ArrayList<>();
         String raw = preferences.getString(KEY_SAVED_LISTS, "[]");
         try {
             JSONArray array = new JSONArray(raw);
@@ -141,17 +141,18 @@ final class ShoppingListStore {
                 if (name.isEmpty()) {
                     continue;
                 }
-                ArrayList<String> names = new ArrayList<>();
-                JSONArray items = object.optJSONArray("items");
-                if (items != null) {
-                    for (int j = 0; j < items.length(); j++) {
-                        String itemName = items.optString(j).trim();
-                        if (!itemName.isEmpty()) {
-                            names.add(itemName);
+                ArrayList<ShoppingItem> items = new ArrayList<>();
+                JSONArray rawItems = object.optJSONArray("items");
+                if (rawItems != null) {
+                    for (int j = 0; j < rawItems.length(); j++) {
+                        ShoppingItem item = parseSavedItem(rawItems, j);
+                        if (item != null) {
+                            items.add(item);
                         }
                     }
                 }
-                lists.add(new SavedList(name, names));
+                boolean hasDetails = object.optBoolean("hasDetails", false);
+                lists.add(new ShoppingList(name, items, hasDetails));
             }
         } catch (JSONException ignored) {
             // Invalid saved-list data should not prevent the main list loading.
@@ -159,22 +160,50 @@ final class ShoppingListStore {
         return lists;
     }
 
-    void saveSavedLists(List<SavedList> lists) {
+    private ShoppingItem parseSavedItem(JSONArray rawItems, int index) {
+        JSONObject detail = rawItems.optJSONObject(index);
+        if (detail != null) {
+            ShoppingItem item = ShoppingItem.fromSavedJson(detail);
+            return item.name.isEmpty() ? null : item;
+        }
+        String name = rawItems.optString(index, "").trim();
+        if (name.isEmpty()) {
+            return null;
+        }
+        ShoppingItem item = new ShoppingItem();
+        item.name = name;
+        item.qty = 1;
+        return item;
+    }
+
+    void saveShoppingLists(List<ShoppingList> lists) {
         JSONArray array = new JSONArray();
-        for (SavedList list : lists) {
+        for (ShoppingList list : lists) {
             JSONObject object = new JSONObject();
             JSONArray items = new JSONArray();
-            for (String itemName : list.itemNames) {
-                items.put(itemName);
+            for (ShoppingItem item : list.items) {
+                items.put(toSavedListEntry(item, list.hasDetails));
             }
             try {
                 object.put("name", list.name);
                 object.put("items", items);
+                object.put("hasDetails", list.hasDetails);
                 array.put(object);
             } catch (JSONException ignored) {
                 // Keep saving the remaining valid lists.
             }
         }
         preferences.edit().putString(KEY_SAVED_LISTS, array.toString()).apply();
+    }
+
+    private Object toSavedListEntry(ShoppingItem item, boolean withDetails) {
+        if (withDetails) {
+            try {
+                return item.toSavedJson();
+            } catch (JSONException ignored) {
+                // Fall back to a name-only entry rather than losing the item.
+            }
+        }
+        return item.name.trim();
     }
 }

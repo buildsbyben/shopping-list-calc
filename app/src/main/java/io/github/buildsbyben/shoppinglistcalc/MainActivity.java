@@ -22,6 +22,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
@@ -59,7 +60,8 @@ public class MainActivity extends Activity {
     private String weightUnit;
     private int reorderAutoScrollDirection;
     private final Runnable reorderAutoScroller = new Runnable() {
-        @Override public void run() {
+        @Override
+        public void run() {
             if (scroll == null || reorderAutoScrollDirection == 0) {
                 return;
             }
@@ -278,12 +280,12 @@ public class MainActivity extends Activity {
     }
 
     private void showSavedListPicker(SavedListAction action) {
-        ArrayList<SavedList> savedLists = store.savedLists();
+        ArrayList<ShoppingList> shoppingLists = store.readSavedShoppingLists();
         if (action == SavedListAction.SAVE) {
-            showSaveCurrentListDialog(savedLists);
+            showSaveCurrentListDialog(shoppingLists);
             return;
         }
-        if (savedLists.isEmpty() && action != SavedListAction.SAVE) {
+        if (shoppingLists.isEmpty() && action != SavedListAction.SAVE) {
             new AlertDialog.Builder(this)
                     .setTitle("No saved lists")
                     .setMessage("Save your current list first, then you can load or edit it here.")
@@ -293,14 +295,18 @@ public class MainActivity extends Activity {
         }
 
         ArrayList<String> choices = new ArrayList<>();
-        for (SavedList savedList : savedLists) {
-            choices.add(savedList.name);
+        for (ShoppingList shoppingList : shoppingLists) {
+            choices.add(shoppingList.name + (shoppingList.hasDetails ? " (+)" : ""));
         }
         String title = action == SavedListAction.LOAD ? "Load saved list" : "Edit saved list";
+        LinearLayout customTitle = column();
+        customTitle.addView(label(title, 16, text, true));
+        customTitle.addView(label("(+) means the list also saves details", 9, muted, false));
+        customTitle.setPadding(48,24,0,0);
         new AlertDialog.Builder(this)
-                .setTitle(title)
+                .setCustomTitle(customTitle)
                 .setItems(choices.toArray(new String[0]), (dialog, which) -> {
-                    SavedList selected = savedLists.get(which);
+                    ShoppingList selected = shoppingLists.get(which);
                     if (action == SavedListAction.LOAD) {
                         confirmLoadSavedList(selected);
                     } else {
@@ -311,7 +317,7 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private void showSaveCurrentListDialog(ArrayList<SavedList> savedLists) {
+    private void showSaveCurrentListDialog(ArrayList<ShoppingList> shoppingLists) {
         EditText nameInput = input("New saved list name", false);
         nameInput.setSingleLine(true);
         nameInput.setPadding(dp(12), dp(6), dp(12), dp(6));
@@ -319,18 +325,26 @@ public class MainActivity extends Activity {
         wrap.setPadding(dp(18), dp(8), dp(18), 0);
         wrap.addView(nameInput, dialogNameInputParams());
 
-        TextView existingLabel = label("Or select a saved list to overwrite", 13, muted, false);
+        final boolean[] userChoiceIncludeDetails = {false}; // stores whether user manually toggled the checkbox
+        CheckBox includeDetails = checkBox("Include prices and quantities", userChoiceIncludeDetails[0]);
+        wrap.addView(includeDetails, matchWrap(top(10)));
+
+        TextView existingLabel = label("Or select a saved list to overwrite", 13, muted, true);
+        TextView asteriskMeaning = label("(+) means the list also saves details", 9, muted, false);
         wrap.addView(existingLabel, matchWrap(top(14)));
+        wrap.addView(asteriskMeaning, matchWrap(bottom(2)));
         ScrollView savedListScroll = new ScrollView(this);
         RadioGroup savedListChoices = new RadioGroup(this);
         savedListChoices.setOrientation(LinearLayout.VERTICAL);
-        for (int i = 0; i < savedLists.size(); i++) {
+        for (int i = 0; i < shoppingLists.size(); i++) {
             RadioButton choice = new RadioButton(this);
             choice.setId(i + 1);
-            choice.setText(savedLists.get(i).name);
+            ShoppingList list = shoppingLists.get(i);
+            choice.setText(list.name + (list.hasDetails ? " (+)" : ""));
             choice.setTextColor(text);
             choice.setTextSize(16);
             choice.setPadding(0, dp(3), 0, dp(3));
+            choice.setOnClickListener(v -> includeDetails.setChecked(list.hasDetails));
             savedListChoices.addView(choice, matchWrap(new LinearLayout.LayoutParams(0, 0)));
         }
         savedListScroll.addView(savedListChoices);
@@ -339,24 +353,31 @@ public class MainActivity extends Activity {
         wrap.addView(savedListScroll, scrollParams);
 
         nameInput.addTextChangedListener(new SimpleWatcher() {
-            @Override public void afterTextChanged(Editable s) {
+            @Override
+            public void afterTextChanged(Editable s) {
                 if (s.length() > 0) {
                     savedListChoices.clearCheck();
+                    includeDetails.setChecked(userChoiceIncludeDetails[0]);
                 }
             }
         });
+        includeDetails.setOnClickListener(v -> userChoiceIncludeDetails[0] = includeDetails.isChecked());
+        LinearLayout customTitle = column();
+        customTitle.addView(label("Save current list", 16, text, true));
+        customTitle.addView(label("Save your current list. Tick the box to also keep prices, quantities and weight mode.", 9, muted, false));
+        customTitle.setPadding(48,24,0,0);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Save current list")
-                .setMessage("Save item names from your current list.")
+                .setCustomTitle(customTitle)
                 .setView(wrap)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", null)
                 .create();
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            boolean saveDetails = includeDetails.isChecked();
             int selectedId = savedListChoices.getCheckedRadioButtonId();
             if (selectedId != -1) {
                 dialog.dismiss();
-                confirmOverwriteSavedList(savedLists.get(selectedId - 1));
+                confirmOverwriteSavedList(shoppingLists.get(selectedId - 1).name, saveDetails);
                 return;
             }
             String name = nameInput.getText().toString().trim();
@@ -364,48 +385,50 @@ public class MainActivity extends Activity {
                 nameInput.setError("Enter a name or select a saved list");
                 return;
             }
-            for (SavedList savedList : savedLists) {
-                if (savedList.name.equalsIgnoreCase(name)) {
+            for (ShoppingList shoppingList : shoppingLists) {
+                if (shoppingList.name.equalsIgnoreCase(name)) {
                     dialog.dismiss();
-                    confirmOverwriteSavedList(new SavedList(name, savedList.itemNames));
+                    confirmOverwriteSavedList(shoppingList.name, saveDetails);
                     return;
                 }
             }
-            savedLists.add(new SavedList(name, cleanListNames(currentItemNameList())));
-            store.saveSavedLists(savedLists);
+            shoppingLists.add(new ShoppingList(name, currentSavedItems(saveDetails), saveDetails));
+            store.saveShoppingLists(shoppingLists);
             dialog.dismiss();
         }));
         dialog.show();
     }
 
-    private void confirmOverwriteSavedList(SavedList selected) {
+    private void confirmOverwriteSavedList(String name, boolean saveDetails) {
         new AlertDialog.Builder(this)
                 .setTitle("Replace saved list?")
-                .setMessage("Your current item names will replace \"" + selected.name + "\". This does not change your current list.")
+                .setMessage((saveDetails
+                        ? "Your current item names, prices and quantities will replace \""
+                        : "Your current item names will replace \"") + name + "\". This does not change your current list.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Replace", (dialog, which) -> {
-                    ArrayList<SavedList> savedLists = store.savedLists();
-                    replaceSavedList(savedLists, selected.name, cleanListNames(currentItemNameList()));
-                    store.saveSavedLists(savedLists);
+                    ArrayList<ShoppingList> shoppingLists = store.readSavedShoppingLists();
+                    replaceSavedList(shoppingLists, name, currentSavedItems(saveDetails), saveDetails);
+                    store.saveShoppingLists(shoppingLists);
                 })
                 .show();
     }
 
-    private void confirmLoadSavedList(SavedList selected) {
+    private void confirmLoadSavedList(ShoppingList selected) {
         new AlertDialog.Builder(this)
                 .setTitle("Use \"" + selected.name + "\"")
-                .setMessage("Choose how its item names should affect your current list.")
+                .setMessage(selected.hasDetails
+                        ? "Choose how its items, with their prices and quantities, should affect your current list."
+                        : "Choose how its item names should affect your current list.")
                 .setNegativeButton("Cancel", null)
                 .setNeutralButton("Add to current", (dialog, which) -> addSavedListToCurrent(selected))
                 .setPositiveButton("Replace current", (dialog, which) -> replaceCurrentWithSavedList(selected))
                 .show();
     }
 
-    private void addSavedListToCurrent(SavedList selected) {
-        for (String name : selected.itemNames) {
-            ShoppingItem item = new ShoppingItem();
-            item.name = name;
-            item.qty = 1;
+    private void addSavedListToCurrent(ShoppingList selected) {
+        for (ShoppingItem saved : selected.items) {
+            ShoppingItem item = saved.copy();
             item.order = nextOrder();
             items.add(item);
         }
@@ -414,13 +437,13 @@ public class MainActivity extends Activity {
         recalc();
     }
 
-    private void replaceCurrentWithSavedList(SavedList selected) {
+    private void replaceCurrentWithSavedList(ShoppingList selected) {
         items.clear();
-        for (int i = 0; i < selected.itemNames.size(); i++) {
-            ShoppingItem item = new ShoppingItem();
-            item.name = selected.itemNames.get(i);
-            item.qty = 1;
-            item.order = (i + 1) * 10;
+        int order = 10;
+        for (ShoppingItem saved : selected.items) {
+            ShoppingItem item = saved.copy();
+            item.order = order;
+            order += 10;
             items.add(item);
         }
         saveItems();
@@ -428,13 +451,13 @@ public class MainActivity extends Activity {
         recalc();
     }
 
-    private void showSavedListEditor(SavedList selected) {
+    private void showSavedListEditor(ShoppingList selected) {
         EditText nameInput = input("Saved list name", false);
         nameInput.setText(selected.name);
         nameInput.setSingleLine(true);
         nameInput.setPadding(dp(12), dp(6), dp(12), dp(6));
         EditText listInput = multilineListInput();
-        listInput.setText(joinListNames(selected.itemNames));
+        listInput.setText(joinItemNames(selected.items));
         LinearLayout wrap = column();
         wrap.setPadding(dp(18), dp(8), dp(18), 0);
         wrap.addView(nameInput, dialogNameInputParams());
@@ -453,15 +476,16 @@ public class MainActivity extends Activity {
                     nameInput.setError("Enter a saved list name");
                     return;
                 }
-                ArrayList<SavedList> savedLists = store.savedLists();
-                for (SavedList savedList : savedLists) {
-                    if (!savedList.name.equalsIgnoreCase(selected.name) && savedList.name.equalsIgnoreCase(name)) {
+                ArrayList<ShoppingList> shoppingLists = store.readSavedShoppingLists();
+                for (ShoppingList shoppingList : shoppingLists) {
+                    if (!shoppingList.name.equalsIgnoreCase(selected.name) && shoppingList.name.equalsIgnoreCase(name)) {
                         nameInput.setError("A saved list already uses this name");
                         return;
                     }
                 }
-                updateSavedList(savedLists, selected.name, name, cleanListNames(listInput.getText().toString()));
-                store.saveSavedLists(savedLists);
+                ArrayList<ShoppingItem> updatedItems = mergeNamesIntoItems(selected.items, listInput.getText().toString());
+                updateSavedList(shoppingLists, selected, name, updatedItems);
+                store.saveShoppingLists(shoppingLists);
                 dialog.dismiss();
             });
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> confirmDeleteSavedList(selected.name, dialog));
@@ -475,36 +499,59 @@ public class MainActivity extends Activity {
                 .setMessage("\"" + name + "\" will be permanently deleted. Your current list will not change.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", (dialog, which) -> {
-                    ArrayList<SavedList> savedLists = store.savedLists();
-                    for (int i = savedLists.size() - 1; i >= 0; i--) {
-                        if (savedLists.get(i).name.equals(name)) {
-                            savedLists.remove(i);
+                    ArrayList<ShoppingList> shoppingLists = store.readSavedShoppingLists();
+                    for (int i = shoppingLists.size() - 1; i >= 0; i--) {
+                        if (shoppingLists.get(i).name.equals(name)) {
+                            shoppingLists.remove(i);
                         }
                     }
-                    store.saveSavedLists(savedLists);
+                    store.saveShoppingLists(shoppingLists);
                     editorDialog.dismiss();
                 })
                 .show();
     }
 
-    private void replaceSavedList(ArrayList<SavedList> savedLists, String name, ArrayList<String> names) {
-        for (int i = 0; i < savedLists.size(); i++) {
-            if (savedLists.get(i).name.equalsIgnoreCase(name)) {
-                savedLists.set(i, new SavedList(savedLists.get(i).name, names));
+    private void replaceSavedList(ArrayList<ShoppingList> shoppingLists, String name, ArrayList<ShoppingItem> items, boolean hasDetails) {
+        for (int i = 0; i < shoppingLists.size(); i++) {
+            if (shoppingLists.get(i).name.equalsIgnoreCase(name)) {
+                shoppingLists.set(i, new ShoppingList(shoppingLists.get(i).name, items, hasDetails));
                 return;
             }
         }
-        savedLists.add(new SavedList(name, names));
+        shoppingLists.add(new ShoppingList(name, items, hasDetails));
     }
 
-    private void updateSavedList(ArrayList<SavedList> savedLists, String originalName, String updatedName, ArrayList<String> names) {
-        for (int i = 0; i < savedLists.size(); i++) {
-            if (savedLists.get(i).name.equals(originalName)) {
-                savedLists.set(i, new SavedList(updatedName, names));
+    private void updateSavedList(ArrayList<ShoppingList> shoppingLists, ShoppingList selected, String updatedName, ArrayList<ShoppingItem> items) {
+        for (int i = 0; i < shoppingLists.size(); i++) {
+            if (shoppingLists.get(i).name.equals(selected.name)) {
+                shoppingLists.set(i, new ShoppingList(updatedName, items, selected.hasDetails));
                 return;
             }
         }
-        savedLists.add(new SavedList(updatedName, names));
+        shoppingLists.add(new ShoppingList(updatedName, items, selected.hasDetails));
+    }
+
+    /**
+     * Builds the items to save for the current list; details are included only when requested.
+     */
+    private ArrayList<ShoppingItem> currentSavedItems(boolean saveDetails) {
+        sortItems();
+        ArrayList<ShoppingItem> result = new ArrayList<>();
+        for (ShoppingItem item : items) {
+            String name = item.name.trim();
+            if (name.isEmpty()) {
+                continue;
+            }
+            ShoppingItem saved = new ShoppingItem();
+            saved.name = name;
+            if (saveDetails) {
+                saved.price = item.price;
+                saved.qty = item.qty;
+                saved.byWeight = item.byWeight;
+            }
+            result.add(saved);
+        }
+        return result;
     }
 
     private void showListViewDialog() {
@@ -852,7 +899,7 @@ public class MainActivity extends Activity {
                     if (rebuilding) {
                         return;
                     }
-                    item.name = name.getText().toString();
+                    item.name = name.getText().toString().trim();
                     item.price = parseMoney(price, 0);
                     if (item.byWeight && weight != null) {
                         item.qty = Math.max(0, parseDouble(weight, 0));
@@ -1214,6 +1261,14 @@ public class MainActivity extends Activity {
         return input;
     }
 
+    private CheckBox checkBox(String value, boolean checked) {
+        CheckBox box = new CheckBox(this);
+        box.setText(value);
+        box.setTextColor(text);
+        box.setChecked(checked);
+        return box;
+    }
+
     private Button button(String textValue, int background, int foreground) {
         Button button = new Button(this);
         button.setText(textValue);
@@ -1360,7 +1415,20 @@ public class MainActivity extends Activity {
 
     private void applyListView(String rawList) {
         sortItems();
-        ArrayList<ShoppingItem> originalItems = new ArrayList<>(items);
+        ArrayList<ShoppingItem> updatedItems = mergeNamesIntoItems(items, rawList);
+        items.clear();
+        items.addAll(updatedItems);
+        saveItems();
+        rebuildList();
+        recalc();
+    }
+
+    /**
+     * Matches each line of {@code rawList} against {@code originalItems} by name (in order),
+     * keeping that item's other fields, so a raw-text edit doesn't discard existing data.
+     * Lines with no match become new, detail-less items.
+     */
+    private ArrayList<ShoppingItem> mergeNamesIntoItems(ArrayList<ShoppingItem> originalItems, String rawList) {
         ArrayList<ShoppingItem> updatedItems = new ArrayList<>();
         boolean[] used = new boolean[originalItems.size()];
         ArrayList<String> names = cleanListNames(rawList);
@@ -1380,12 +1448,7 @@ public class MainActivity extends Activity {
             item.order = (updatedItems.size() + 1) * 10;
             updatedItems.add(item);
         }
-
-        items.clear();
-        items.addAll(updatedItems);
-        saveItems();
-        rebuildList();
-        recalc();
+        return updatedItems;
     }
 
     private ShoppingItem findUnusedItemByName(ArrayList<ShoppingItem> originalItems, boolean[] used, String name) {
@@ -1406,18 +1469,18 @@ public class MainActivity extends Activity {
             if (builder.length() > 0) {
                 builder.append('\n');
             }
-            builder.append(item.name);
+            builder.append(item.name.trim());
         }
         return builder.toString();
     }
 
-    private String joinListNames(ArrayList<String> names) {
+    private String joinItemNames(ArrayList<ShoppingItem> items) {
         StringBuilder builder = new StringBuilder();
-        for (String name : names) {
+        for (ShoppingItem item : items) {
             if (builder.length() > 0) {
                 builder.append('\n');
             }
-            builder.append(name);
+            builder.append(item.name);
         }
         return builder.toString();
     }
