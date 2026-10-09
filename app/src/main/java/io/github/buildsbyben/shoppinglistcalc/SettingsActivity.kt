@@ -201,6 +201,9 @@ class SettingsActivity : Activity() {
 
         val budgetText = if (budget == 0.0) "" else formatBudget(budget, format)
         budgetInput = input("", budgetText, false)
+        // Request a decimal keyboard without filtering formatted currency text.
+        // setInputType would install a digits-only listener and strip symbols/separators.
+        budgetInput.setRawInputType(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
         budgetField.addView(budgetInput, top(5))
 
         val taxParams = LinearLayout.LayoutParams(0, -2, 1f)
