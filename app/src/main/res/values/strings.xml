@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Shopping List Calculator</string>
+    <string name="include_saved_details">Include prices and quantities</string>
+    <string name="saved_list_with_prices">%1$s (with prices)</string>
 </resources>

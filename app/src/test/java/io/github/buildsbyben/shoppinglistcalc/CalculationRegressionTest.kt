@@ -54,10 +54,10 @@ class CalculationRegressionTest {
 
     @Test fun savedListCopiesInputNamesAndRetainsDuplicatesAndOrder() {
         val source = arrayListOf("Milk", "Bread", "Milk")
-        val saved = SavedList("Weekly", source)
+        val saved = ShoppingList("Weekly", source.map { ShoppingItem().apply { name = it } }, false)
         source.clear()
         assertEquals("Weekly", saved.name)
-        assertEquals(listOf("Milk", "Bread", "Milk"), saved.itemNames)
+        assertEquals(listOf("Milk", "Bread", "Milk"), saved.items.map { it.name })
     }
 
     private fun item(name: String, price: Double, quantity: Double) = ShoppingItem().apply {

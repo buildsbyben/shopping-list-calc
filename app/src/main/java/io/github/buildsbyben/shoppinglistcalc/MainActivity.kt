@@ -21,6 +21,7 @@ import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import android.widget.CheckBox
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -309,7 +310,7 @@ class MainActivity : Activity() {
     }
 
     private fun showSavedListPicker(action: SavedListAction) {
-        val savedLists: ArrayList<SavedList> = store.savedLists()
+        val savedLists: ArrayList<ShoppingList> = store.readSavedShoppingLists()
         if (action == SavedListAction.SAVE) {
             showSaveCurrentListDialog(savedLists)
             return
@@ -325,13 +326,13 @@ class MainActivity : Activity() {
 
         val choices: ArrayList<String> = ArrayList()
         for (savedList in savedLists) {
-            choices.add(savedList.name)
+            choices.add(if (savedList.hasDetails) getString(R.string.saved_list_with_prices, savedList.name) else savedList.name)
         }
         val title: String = if (action == SavedListAction.LOAD) "Load saved list" else "Edit saved list"
         AlertDialog.Builder(this)
                 .setTitle(title)
                 .setItems(choices.toTypedArray(), { dialog, which ->
-                    val selected: SavedList = savedLists.get(which)
+                    val selected: ShoppingList = savedLists.get(which)
                     if (action == SavedListAction.LOAD) {
                         confirmLoadSavedList(selected)
                     } else {
@@ -342,7 +343,7 @@ class MainActivity : Activity() {
                 .show()
     }
 
-    private fun showSaveCurrentListDialog(savedLists: ArrayList<SavedList>) {
+    private fun showSaveCurrentListDialog(savedLists: ArrayList<ShoppingList>) {
         val nameInput: EditText = input("New saved list name", false)
         nameInput.setSingleLine(true)
         nameInput.setPadding(dp(12), dp(6), dp(12), dp(6))
@@ -350,6 +351,13 @@ class MainActivity : Activity() {
         wrap.setPadding(dp(18), dp(8), dp(18), 0)
         wrap.addView(nameInput, dialogNameInputParams())
 
+        var newListDetails = false
+        val includeDetails = CheckBox(this).apply {
+            setText(R.string.include_saved_details)
+            setTextColor(this@MainActivity.text)
+            setOnClickListener { newListDetails = isChecked }
+        }
+        wrap.addView(includeDetails, matchWrap(top(10)))
         val existingLabel: TextView = label("Or select a saved list to overwrite", 13, muted, false)
         wrap.addView(existingLabel, matchWrap(top(14)))
         val savedListScroll: ScrollView = ScrollView(this)
@@ -358,7 +366,9 @@ class MainActivity : Activity() {
         for (i in 0 until savedLists.size) {
             val choice: RadioButton = RadioButton(this)
             choice.setId(i + 1)
-            choice.setText(savedLists.get(i).name)
+            val savedList = savedLists[i]
+            choice.setText(if (savedList.hasDetails) getString(R.string.saved_list_with_prices, savedList.name) else savedList.name)
+            choice.setOnClickListener { includeDetails.isChecked = savedList.hasDetails }
             choice.setTextColor(text)
             choice.setTextSize(16f)
             choice.setPadding(0, dp(3), 0, dp(3))
@@ -373,12 +383,13 @@ class MainActivity : Activity() {
             override fun afterTextChanged(s: Editable) {
                 if (s.length > 0) {
                     savedListChoices.clearCheck()
+                    includeDetails.isChecked = newListDetails
                 }
             }
         })
         val dialog: AlertDialog = AlertDialog.Builder(this)
                 .setTitle("Save current list")
-                .setMessage("Save item names from your current list.")
+                .setMessage("Save item names. Check the box to also keep prices, quantities, and weight mode. Checked status is not saved.")
                 .setView(wrap)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", null)
@@ -387,7 +398,7 @@ class MainActivity : Activity() {
             val selectedId: Int = savedListChoices.getCheckedRadioButtonId()
             if (selectedId != -1) {
                 dialog.dismiss()
-                confirmOverwriteSavedList(savedLists.get(selectedId - 1))
+                confirmOverwriteSavedList(savedLists[selectedId - 1].name, includeDetails.isChecked)
                 return@saveList
             }
             val name: String = nameInput.getText().toString().trim { it <= ' ' }
@@ -398,45 +409,47 @@ class MainActivity : Activity() {
             for (savedList in savedLists) {
                 if (savedList.name.equals(name, ignoreCase = true)) {
                     dialog.dismiss()
-                    confirmOverwriteSavedList(SavedList(name, savedList.itemNames))
+                    confirmOverwriteSavedList(savedList.name, includeDetails.isChecked)
                     return@saveList
                 }
             }
-            savedLists.add(SavedList(name, cleanListNames(currentItemNameList())))
-            store.saveSavedLists(savedLists)
+            savedLists.add(ShoppingList(name, currentSavedItems(), includeDetails.isChecked))
+            store.saveShoppingLists(savedLists)
             dialog.dismiss()
          }) })
         dialog.show()
     }
 
-    private fun confirmOverwriteSavedList(selected: SavedList) {
+    private fun confirmOverwriteSavedList(name: String, saveDetails: Boolean) {
+        val content = if (saveDetails) "items, prices, quantities, and weight mode" else "item names only"
         AlertDialog.Builder(this)
-                .setTitle("Replace saved list?")
-                .setMessage("Your current item names will replace \"" + selected.name + "\". This does not change your current list.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Replace", { dialog, which ->
-                    val savedLists: ArrayList<SavedList> = store.savedLists()
-                    replaceSavedList(savedLists, selected.name, cleanListNames(currentItemNameList()))
-                    store.saveSavedLists(savedLists)
-                 })
-                .show()
+            .setTitle("Replace saved list?")
+            .setMessage("Replace \"$name\" with your current $content? Your current list will not change.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Replace") { _, _ ->
+                val lists = store.readSavedShoppingLists()
+                val index = lists.indexOfFirst { it.name.equals(name, ignoreCase = true) }
+                val replacement = ShoppingList(name, currentSavedItems(), saveDetails)
+                if (index >= 0) lists[index] = replacement else lists.add(replacement)
+                store.saveShoppingLists(lists)
+            }.show()
     }
 
-    private fun confirmLoadSavedList(selected: SavedList) {
+    private fun confirmLoadSavedList(selected: ShoppingList) {
         AlertDialog.Builder(this)
                 .setTitle("Use \"" + selected.name + "\"")
-                .setMessage("Choose how its item names should affect your current list.")
+                .setMessage(if (selected.hasDetails)
+                    "Load item names, prices, quantities, and weight mode. Items will start unchecked."
+                    else "Choose how its item names should affect your current list.")
                 .setNegativeButton("Cancel", null)
                 .setNeutralButton("Add to current", { dialog, which -> addSavedListToCurrent(selected) })
                 .setPositiveButton("Replace current", { dialog, which -> replaceCurrentWithSavedList(selected) })
                 .show()
     }
 
-    private fun addSavedListToCurrent(selected: SavedList) {
-        for (name in selected.itemNames) {
-            val item: ShoppingItem = ShoppingItem()
-            item.name = name
-            item.qty = 1.0
+    private fun addSavedListToCurrent(selected: ShoppingList) {
+        for (saved in selected.items) {
+            val item = saved.copy().apply { inCart = false }
             item.order = nextOrder()
             items.add(item)
         }
@@ -445,12 +458,10 @@ class MainActivity : Activity() {
         recalc()
     }
 
-    private fun replaceCurrentWithSavedList(selected: SavedList) {
+    private fun replaceCurrentWithSavedList(selected: ShoppingList) {
         items.clear()
-        for (i in 0 until selected.itemNames.size) {
-            val item: ShoppingItem = ShoppingItem()
-            item.name = selected.itemNames.get(i)
-            item.qty = 1.0
+        for (i in selected.items.indices) {
+            val item = selected.items[i].copy().apply { inCart = false }
             item.order = (i + 1) * 10
             items.add(item)
         }
@@ -459,19 +470,21 @@ class MainActivity : Activity() {
         recalc()
     }
 
-    private fun showSavedListEditor(selected: SavedList) {
+    private fun showSavedListEditor(selected: ShoppingList) {
         val nameInput: EditText = input("Saved list name", false)
         nameInput.setText(selected.name)
         nameInput.setSingleLine(true)
         nameInput.setPadding(dp(12), dp(6), dp(12), dp(6))
         val listInput: EditText = multilineListInput()
-        listInput.setText(joinListNames(selected.itemNames))
+        listInput.setText(selected.items.joinToString("\n") { it.name })
         val wrap: LinearLayout = column()
         wrap.setPadding(dp(18), dp(8), dp(18), 0)
         wrap.addView(nameInput, dialogNameInputParams())
         wrap.addView(listInput, matchWrap(top(ShoppingStyle.FIELD_GAP_DP)))
         val dialog: AlertDialog = AlertDialog.Builder(this)
-                .setMessage("One item per line. Changes affect only this saved list.")
+                .setMessage(if (selected.hasDetails)
+                    "One item per line. Unchanged names keep their details. New or renamed items start without details. Changes affect only this saved list."
+                    else "One item per line. Changes affect only this saved list.")
                 .setView(wrap)
                 .setNegativeButton("Cancel", null)
                 .setNeutralButton("Delete", null)
@@ -484,15 +497,18 @@ class MainActivity : Activity() {
                     nameInput.setError("Enter a saved list name")
                     return@saveEdits
                 }
-                val savedLists: ArrayList<SavedList> = store.savedLists()
+                val savedLists: ArrayList<ShoppingList> = store.readSavedShoppingLists()
                 for (savedList in savedLists) {
                     if (!savedList.name.equals(selected.name, ignoreCase = true) && savedList.name.equals(name, ignoreCase = true)) {
                         nameInput.setError("A saved list already uses this name")
                         return@saveEdits
                     }
                 }
-                updateSavedList(savedLists, selected.name, name, cleanListNames(listInput.getText().toString()))
-                store.saveSavedLists(savedLists)
+                val updated = ShoppingList(name,
+                    mergeSavedNames(selected.items, listInput.text.toString()), selected.hasDetails)
+                val index = savedLists.indexOfFirst { it.name == selected.name }
+                if (index >= 0) savedLists[index] = updated else savedLists.add(updated)
+                store.saveShoppingLists(savedLists)
                 dialog.dismiss()
              })
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener({ v -> confirmDeleteSavedList(selected.name, dialog) })
@@ -506,36 +522,37 @@ class MainActivity : Activity() {
                 .setMessage("\"" + name + "\" will be permanently deleted. Your current list will not change.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", { dialog, which ->
-                    val savedLists: ArrayList<SavedList> = store.savedLists()
+                    val savedLists: ArrayList<ShoppingList> = store.readSavedShoppingLists()
                     for (i in savedLists.size - 1 downTo 0) {
                         if (savedLists.get(i).name.equals(name)) {
                             savedLists.removeAt(i)
                         }
                     }
-                    store.saveSavedLists(savedLists)
+                    store.saveShoppingLists(savedLists)
                     editorDialog.dismiss()
                  })
                 .show()
     }
 
-    private fun replaceSavedList(savedLists: ArrayList<SavedList>, name: String, names: ArrayList<String>) {
-        for (i in 0 until savedLists.size) {
-            if (savedLists.get(i).name.equals(name, ignoreCase = true)) {
-                savedLists.set(i, SavedList(savedLists.get(i).name, names))
-                return
-            }
+    private fun currentSavedItems(): List<ShoppingItem> {
+        sortItems()
+        return items.filter { it.name.trim { c -> c <= ' ' }.isNotEmpty() }.map {
+            it.copy().apply { name = name.trim { c -> c <= ' ' }; inCart = false }
         }
-        savedLists.add(SavedList(name, names))
     }
 
-    private fun updateSavedList(savedLists: ArrayList<SavedList>, originalName: String, updatedName: String, names: ArrayList<String>) {
-        for (i in 0 until savedLists.size) {
-            if (savedLists.get(i).name.equals(originalName)) {
-                savedLists.set(i, SavedList(updatedName, names))
-                return
-            }
+    // Match occurrences by name only. Positional fallback can transfer a product's
+    // price/weight to an unrelated inserted or renamed line. Never mutate the source.
+    private fun mergeSavedNames(original: List<ShoppingItem>, raw: String): List<ShoppingItem> {
+        val remaining = original.toMutableList()
+        // Saved names are literal product names, not pasted bullet-list syntax.
+        val names = raw.replace("\r\n", "\n").replace('\r', '\n').split('\n')
+            .map { it.trim { c -> c <= ' ' } }.filter { it.isNotEmpty() }
+        return names.mapIndexed { index, name ->
+            val match = remaining.indexOfFirst { it.name == name }
+            val item = if (match >= 0) remaining.removeAt(match).copy() else ShoppingItem()
+            item.apply { this.name = name; order = (index + 1) * 10; inCart = false }
         }
-        savedLists.add(SavedList(updatedName, names))
     }
 
     private fun showListViewDialog() {
@@ -1443,17 +1460,6 @@ class MainActivity : Activity() {
                 builder.append('\n')
             }
             builder.append(item.name)
-        }
-        return builder.toString()
-    }
-
-    private fun joinListNames(names: ArrayList<String>): String {
-        val builder: StringBuilder = StringBuilder()
-        for (name in names) {
-            if (builder.length > 0) {
-                builder.append('\n')
-            }
-            builder.append(name)
         }
         return builder.toString()
     }
