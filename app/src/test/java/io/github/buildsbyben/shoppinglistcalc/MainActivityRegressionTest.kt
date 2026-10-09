@@ -77,6 +77,146 @@ class MainActivityRegressionTest {
     }
     private fun positive() { clickDialogButton(AlertDialog.BUTTON_POSITIVE) }
 
+    private fun openSavedAction(index: Int) {
+        chooseAction("Saved lists")
+        chooseDialogItem(index)
+    }
+
+    private fun detailsCheckbox(): android.widget.CheckBox =
+        views(dialog().window!!.decorView).filterIsInstance<android.widget.CheckBox>().single()
+
+    private fun saveDetailedCurrent(name: String) {
+        openSavedAction(0)
+        inputs(dialog().window!!.decorView).single().setText(name)
+        detailsCheckbox().performClick()
+        positive()
+    }
+
+    @Test fun detailedSaveAndBothLoadButtonsRestoreValuesUncheckedAcrossRecreation() {
+        store.saveItems(listOf(ShoppingItem().apply {
+            name = "Apples; \"green\""; price = 3.5; qty = 1.25; byWeight = true; inCart = true
+        }))
+        launch()
+        saveDetailedCurrent("Produce")
+        val saved = store.readSavedShoppingLists().single()
+        assertTrue(saved.hasDetails)
+        assertFalse(saved.items.single().inCart)
+        assertTrue(loaded().single().inCart) // saving never unchecks the active cart
+        controller.recreate()
+        activity = controller.get()
+        openSavedAction(1); chooseDialogItem(0)
+        clickDialogButton(AlertDialog.BUTTON_NEUTRAL)
+        val added = loaded().last()
+        assertEquals(2, loaded().size)
+        assertEquals("Apples; \"green\"", added.name)
+        assertEquals(3.5, added.price, 0.0)
+        assertEquals(1.25, added.qty, 0.0)
+        assertTrue(added.byWeight)
+        assertFalse(added.inCart)
+        openSavedAction(1); chooseDialogItem(0); positive()
+        assertEquals(1, loaded().size)
+        assertEquals(3.5, loaded().single().price, 0.0)
+        assertEquals(1.25, loaded().single().qty, 0.0)
+        assertTrue(loaded().single().byWeight)
+        assertFalse(loaded().single().inCart)
+    }
+
+    @Test fun overwritePreselectsModeAndCanExplicitlyRemoveDetailsWithoutTouchingCart() {
+        seed("Milk")
+        launch()
+        saveDetailedCurrent("Weekly")
+        openSavedAction(0)
+        val radio = views(dialog().window!!.decorView).filterIsInstance<android.widget.RadioButton>().single()
+        radio.performClick()
+        assertTrue(detailsCheckbox().isChecked)
+        detailsCheckbox().performClick()
+        positive() // overwrite confirmation
+        positive()
+        val saved = store.readSavedShoppingLists().single()
+        assertFalse(saved.hasDetails)
+        assertEquals(0.0, saved.items.single().price, 0.0)
+        assertEquals(1.0, loaded().single().price, 0.0)
+    }
+
+    @Test fun overwriteCancelAndEditorCancelLeaveSavedDetailsUntouched() {
+        seed("Milk", "Bread")
+        launch()
+        saveDetailedCurrent("Weekly")
+        openSavedAction(0)
+        views(dialog().window!!.decorView).filterIsInstance<android.widget.RadioButton>().single().performClick()
+        detailsCheckbox().performClick()
+        positive()
+        clickDialogButton(AlertDialog.BUTTON_NEGATIVE)
+        assertTrue(store.readSavedShoppingLists().single().hasDetails)
+        openSavedAction(2); chooseDialogItem(0)
+        inputs(dialog().window!!.decorView)[1].setText("Eggs\nMilk")
+        clickDialogButton(AlertDialog.BUTTON_NEGATIVE)
+        assertEquals(listOf("Milk", "Bread"), store.readSavedShoppingLists().single().items.map { it.name })
+        assertEquals(listOf(1.0, 2.0), store.readSavedShoppingLists().single().items.map { it.price })
+    }
+
+    @Test fun savedEditorInsertionReorderingDuplicatesAndRenameNeverStealDetails() {
+        seed("Milk", "Bread", "Milk")
+        launch()
+        saveDetailedCurrent("Weekly")
+        openSavedAction(2); chooseDialogItem(0)
+        val editor = inputs(dialog().window!!.decorView)
+        editor[0].setText("Updated")
+        editor[1].setText("Eggs\nBread\nMilk\nMilk\nButter")
+        positive()
+        var saved = store.readSavedShoppingLists().single()
+        assertEquals("Updated", saved.name)
+        assertEquals(listOf("Eggs", "Bread", "Milk", "Milk", "Butter"), saved.items.map { it.name })
+        assertEquals(listOf(0.0, 2.0, 1.0, 3.0, 0.0), saved.items.map { it.price })
+        assertEquals(listOf("Milk", "Bread", "Milk"), loaded().map { it.name })
+        openSavedAction(2); chooseDialogItem(0)
+        inputs(dialog().window!!.decorView)[1].setText("Toast\nMilk")
+        positive()
+        saved = store.readSavedShoppingLists().single()
+        assertEquals(listOf("Toast", "Milk"), saved.items.map { it.name })
+        assertEquals(listOf(0.0, 1.0), saved.items.map { it.price })
+    }
+
+    @Test fun newListAfterSelectingOverwriteDoesNotInheritDetailedMode() {
+        seed("Milk")
+        launch()
+        saveDetailedCurrent("Detailed")
+        openSavedAction(0)
+        views(dialog().window!!.decorView).filterIsInstance<android.widget.RadioButton>().single().performClick()
+        assertTrue(detailsCheckbox().isChecked)
+        inputs(dialog().window!!.decorView).single().setText("Plain")
+        assertFalse(detailsCheckbox().isChecked)
+        positive()
+        assertFalse(store.readSavedShoppingLists().last().hasDetails)
+        assertEquals(0.0, store.readSavedShoppingLists().last().items.single().price, 0.0)
+    }
+
+    @Test fun nameOnlySavedListLoadsDefaultValuesThroughBothButtons() {
+        seed("Milk")
+        launch()
+        openSavedAction(0)
+        inputs(dialog().window!!.decorView).single().setText("Plain")
+        positive()
+        openSavedAction(1); chooseDialogItem(0)
+        clickDialogButton(AlertDialog.BUTTON_NEUTRAL)
+        assertEquals(0.0, loaded().last().price, 0.0)
+        assertEquals(1.0, loaded().last().qty, 0.0)
+        assertFalse(loaded().last().byWeight)
+        openSavedAction(1); chooseDialogItem(0); positive()
+        assertEquals(1, loaded().size)
+        assertEquals(0.0, loaded().single().price, 0.0)
+    }
+
+    @Test fun savedEditorNoOpKeepsLiteralNamesAndDetails() {
+        seed("1. Milk", "- Bread", "Milk  special; \"large\"")
+        launch()
+        saveDetailedCurrent("Literal")
+        openSavedAction(2); chooseDialogItem(0); positive()
+        val saved = store.readSavedShoppingLists().single()
+        assertEquals(listOf("1. Milk", "- Bread", "Milk  special; \"large\""), saved.items.map { it.name })
+        assertEquals(listOf(1.0, 2.0, 3.0), saved.items.map { it.price })
+    }
+
     @Test fun rapidAddsAfterFocusBeforeScrollKeepEveryItemAndFocusLatestRow() {
         launch()
         controller.visible()
@@ -217,7 +357,7 @@ class MainActivityRegressionTest {
 
     @Test fun clearAndDeleteDialogsHaveDistinctEffectsAndCancelIsSafe() {
         seed("Milk")
-        store.saveSavedLists(listOf(SavedList("Weekly", arrayListOf("Bread"))))
+        store.saveShoppingLists(listOf(ShoppingList("Weekly", listOf(ShoppingItem().apply { name = "Bread" }), false)))
         launch()
         chooseAction("Clear / Delete list")
         clickDialogButton(AlertDialog.BUTTON_NEGATIVE)
@@ -229,7 +369,7 @@ class MainActivityRegressionTest {
         chooseAction("Clear / Delete list")
         positive()
         assertTrue(loaded().isEmpty())
-        assertEquals("Weekly", store.savedLists().single().name)
+        assertEquals("Weekly", store.readSavedShoppingLists().single().name)
     }
 
     @Test fun savedListSaveAddReplaceAndDeleteUseDialogsWithoutLosingCart() {
@@ -238,7 +378,7 @@ class MainActivityRegressionTest {
         chooseAction("Saved lists"); chooseDialogItem(0)
         inputs(dialog().window!!.decorView).single().setText("Weekly")
         positive()
-        assertEquals(listOf("Milk", "Bread"), store.savedLists().single().itemNames)
+        assertEquals(listOf("Milk", "Bread"), store.readSavedShoppingLists().single().items.map { it.name })
         chooseAction("Saved lists"); chooseDialogItem(1); chooseDialogItem(0)
         clickDialogButton(AlertDialog.BUTTON_NEUTRAL)
         assertEquals(listOf("Milk", "Bread", "Milk", "Bread"), loaded().map { it.name })
@@ -247,7 +387,7 @@ class MainActivityRegressionTest {
         assertEquals(listOf(0.0, 0.0), loaded().map { it.price })
         chooseAction("Saved lists"); chooseDialogItem(2); chooseDialogItem(0)
         clickDialogButton(AlertDialog.BUTTON_NEUTRAL); positive()
-        assertTrue(store.savedLists().isEmpty())
+        assertTrue(store.readSavedShoppingLists().isEmpty())
         assertEquals(2, loaded().size)
     }
 

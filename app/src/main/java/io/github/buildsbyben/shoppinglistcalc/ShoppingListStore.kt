@@ -99,25 +99,28 @@ internal class ShoppingListStore(private val preferences: SharedPreferences) {
         preferences.edit().putString(KEY_ITEMS, array.toString()).apply()
     }
 
-    fun savedLists(): ArrayList<SavedList> {
-        val lists = ArrayList<SavedList>()
+    fun readSavedShoppingLists(): ArrayList<ShoppingList> {
+        val lists = ArrayList<ShoppingList>()
         val raw = preferences.getString(KEY_SAVED_LISTS, "[]")
         try {
             val array = JSONArray(raw)
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                // Match Java String.trim(), not Kotlin's broader Unicode whitespace rules.
                 val name = obj.optString("name").trim { it <= ' ' }
                 if (name.isEmpty()) continue
-                val names = ArrayList<String>()
-                val items = obj.optJSONArray("items")
-                if (items != null) {
-                    for (j in 0 until items.length()) {
-                        val itemName = items.optString(j).trim { it <= ' ' }
-                        if (itemName.isNotEmpty()) names.add(itemName)
+                val items = ArrayList<ShoppingItem>()
+                val rawItems = obj.optJSONArray("items")
+                if (rawItems != null) {
+                    for (j in 0 until rawItems.length()) {
+                        val item = when (val entry = rawItems.opt(j)) {
+                            is JSONObject -> ShoppingItem.fromSavedJson(entry)
+                            is String -> ShoppingItem().apply { this.name = entry.trim { it <= ' ' } }
+                            else -> null
+                        }
+                        if (item != null && item.name.isNotEmpty()) items.add(item)
                     }
                 }
-                lists.add(SavedList(name, names))
+                lists.add(ShoppingList(name, items, obj.optBoolean("hasDetails", false)))
             }
         } catch (ignored: JSONException) {
             // Invalid saved-list data should not prevent the main list loading.
@@ -125,15 +128,21 @@ internal class ShoppingListStore(private val preferences: SharedPreferences) {
         return lists
     }
 
-    fun saveSavedLists(lists: List<SavedList>) {
+    fun saveShoppingLists(lists: List<ShoppingList>) {
         val array = JSONArray()
         for (list in lists) {
             val obj = JSONObject()
             val items = JSONArray()
-            for (itemName in list.itemNames) items.put(itemName)
+            for (item in list.items) {
+                val entry: Any = if (list.hasDetails) {
+                    try { item.toSavedJson() } catch (ignored: JSONException) { item.name.trim { it <= ' ' } }
+                } else item.name.trim { it <= ' ' }
+                items.put(entry)
+            }
             try {
                 obj.put("name", list.name)
                 obj.put("items", items)
+                obj.put("hasDetails", list.hasDetails)
                 array.put(obj)
             } catch (ignored: JSONException) {
                 // Keep saving the remaining valid lists.

@@ -30,7 +30,7 @@ class ShoppingListStoreRegressionTest {
         assertEquals("lb", store.weightUnit())
         assertFalse(store.quickCentsEntry())
         assertFalse(store.quickEntry())
-        assertTrue(store.savedLists().isEmpty())
+        assertTrue(store.readSavedShoppingLists().isEmpty())
         val destination = arrayListOf(ShoppingItem())
         store.loadItems(destination)
         assertTrue(destination.isEmpty())
@@ -130,22 +130,22 @@ class ShoppingListStoreRegressionTest {
           {"name":" Weekly ","items":[" Milk ","", "Bread", "Milk"]},
           {"name":" ","items":["ignored"]}, {"name":"Empty"}
         ]""").commit()
-        val lists = store.savedLists()
+        val lists = store.readSavedShoppingLists()
         assertEquals(listOf("Weekly", "Empty"), lists.map { it.name })
-        assertEquals(listOf("Milk", "Bread", "Milk"), lists[0].itemNames)
-        assertTrue(lists[1].itemNames.isEmpty())
+        assertEquals(listOf("Milk", "Bread", "Milk"), lists[0].items.map { it.name })
+        assertTrue(lists[1].items.map { it.name }.isEmpty())
     }
 
     @Test fun savedListWritesKeepLegacySchemaAndDoNotModifyCurrentCart() {
         preferences.edit().putString("items", """[{"name":"Current"}]""").commit()
-        store.saveSavedLists(listOf(SavedList("Weekly", arrayListOf("Milk", "Bread"))))
+        store.saveShoppingLists(listOf(ShoppingList("Weekly", listOf("Milk", "Bread").map { ShoppingItem().apply { name = it } }, false)))
         val raw = JSONArray(preferences.getString("saved_lists", "[]")).getJSONObject(0)
-        assertEquals(setOf("name", "items"), raw.keys().asSequence().toSet())
+        assertEquals(setOf("name", "items", "hasDetails"), raw.keys().asSequence().toSet())
         assertEquals("Weekly", raw.getString("name"))
         assertEquals("Milk", raw.getJSONArray("items").getString(0))
-        assertEquals(listOf("Milk", "Bread"), ShoppingListStore(preferences).savedLists().single().itemNames)
-        store.saveSavedLists(emptyList())
-        assertTrue(store.savedLists().isEmpty())
+        assertEquals(listOf("Milk", "Bread"), ShoppingListStore(preferences).readSavedShoppingLists().single().items.map { it.name })
+        store.saveShoppingLists(emptyList())
+        assertTrue(store.readSavedShoppingLists().isEmpty())
         val current = arrayListOf<ShoppingItem>()
         store.loadItems(current)
         assertEquals("Current", current.single().name)
@@ -154,7 +154,7 @@ class ShoppingListStoreRegressionTest {
     @Test fun malformedSavedListsDoNotPreventLoadingCurrentCart() {
         preferences.edit().putString("items", """[{"name":"Current"}]""")
             .putString("saved_lists", "not JSON").commit()
-        assertTrue(store.savedLists().isEmpty())
+        assertTrue(store.readSavedShoppingLists().isEmpty())
         val current = arrayListOf<ShoppingItem>()
         store.loadItems(current)
         assertEquals("Current", current.single().name)
@@ -165,9 +165,9 @@ class ShoppingListStoreRegressionTest {
           {"name":"\u0000 Weekly \u001f","items":["\u0000 Milk \u001f","\u2003","\u2003Bread\u2003"]},
           42, {"name":"Not reached"}
         ]""").commit()
-        val lists = store.savedLists()
+        val lists = store.readSavedShoppingLists()
         assertEquals(listOf("Weekly"), lists.map { it.name })
-        assertEquals(listOf("Milk", "\u2003", "\u2003Bread\u2003"), lists.single().itemNames)
+        assertEquals(listOf("Milk", "\u2003", "\u2003Bread\u2003"), lists.single().items.map { it.name })
     }
 
     @Test fun invalidNumbersSkipOnlyInvalidItemsWhenSaving() {
@@ -188,6 +188,36 @@ class ShoppingListStoreRegressionTest {
             .putString("grouping_separator", " extra").commit()
         assertEquals(',', store.currencyFormat().decimalSeparator)
         assertEquals(' ', store.currencyFormat().groupingSeparator)
+    }
+
+    @Test fun detailedMalformedEntriesAreSkippedAndUnsafeNumbersDefaulted() {
+        preferences.edit().putString("saved_lists", """[
+          {"name":"Details","hasDetails":true,"items":[42,null,true,[],{},
+            {"name":"Safe","price":-2,"qty":"Infinity","byWeight":true},
+            {"name":null,"price":4},"Plain"]}
+        ]""").commit()
+        val saved = store.readSavedShoppingLists().single()
+        assertEquals(listOf("Safe", "Plain"), saved.items.map { it.name })
+        assertEquals(0.0, saved.items.first().price, 0.0)
+        assertEquals(1.0, saved.items.first().qty, 0.0)
+        assertFalse(saved.items.first().inCart)
+    }
+
+    @Test fun nameOnlyFlagDropsUnexpectedDetailsAndSavedModelDoesNotAliasCurrentItems() {
+        val original = ShoppingItem().apply { name = "Milk"; price = 4.0; qty = 2.0; byWeight = true; inCart = true }
+        val detailed = ShoppingList("Detailed", listOf(original), true)
+        val plain = ShoppingList("Plain", listOf(original), false)
+        original.name = "Changed"; original.price = 8.0
+        assertEquals("Milk", detailed.items.single().name)
+        assertEquals(4.0, detailed.items.single().price, 0.0)
+        assertFalse(detailed.items.single().inCart)
+        assertEquals(0.0, plain.items.single().price, 0.0)
+        assertEquals(1.0, plain.items.single().qty, 0.0)
+        assertFalse(plain.items.single().byWeight)
+        preferences.edit().putString("saved_lists", """[
+          {"name":"Plain","hasDetails":false,"items":[{"name":"Milk","price":4,"qty":2,"byWeight":true}]}
+        ]""").commit()
+        assertEquals(0.0, store.readSavedShoppingLists().single().items.single().price, 0.0)
     }
 
     private fun assertItem(item: ShoppingItem, name: String, order: Int, price: Double,

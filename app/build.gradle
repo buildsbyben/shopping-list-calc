@@ -40,7 +40,7 @@ android {
         debug {
             // Keeps test builds installable beside the F-Droid release.
             applicationIdSuffix ".dev"
-            versionNameSuffix "-kotlin-test.2"
+            versionNameSuffix "-kotlin-test.3"
         }
         release {
             // F-Droid builds unsigned release APKs and signs them itself.
@@ -73,7 +73,7 @@ android {
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         variant.outputs.each { output ->
-            output.versionCode.set(19)
+            output.versionCode.set(20)
         }
     }
 }
@@ -81,4 +81,5 @@ androidComponents {
 dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation "org.json:json:20231013"
 }
