@@ -50,6 +50,8 @@ class MainActivity : Activity() {
     private lateinit var addButton: Button
     private lateinit var menuButton: Button
     private var rebuilding: Boolean = false
+    private var pendingItemFocus: Runnable? = null
+    private var pendingItemScroll: Runnable? = null
     private var focusAfterRebuild: ShoppingItem? = null
     private var taxRate: Double = 0.0
     private var budget: Double = 0.0
@@ -108,6 +110,37 @@ class MainActivity : Activity() {
                 recalc()
             }
         }
+    }
+
+    override fun onPause() {
+        cancelPendingItemCallbacks()
+        stopReorderAutoScroll()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        cancelPendingItemCallbacks()
+        stopReorderAutoScroll()
+        super.onDestroy()
+    }
+
+    private fun cancelPendingItemCallbacks() {
+        if (::scroll.isInitialized) {
+            pendingItemFocus?.let { scroll.removeCallbacks(it) }
+            pendingItemScroll?.let { scroll.removeCallbacks(it) }
+        }
+        pendingItemFocus = null
+        pendingItemScroll = null
+    }
+
+    private fun isCurrentItemView(view: View): Boolean {
+        if (isFinishing || isDestroyed || !view.isAttachedToWindow) return false
+        var current: View? = view
+        while (current != null) {
+            if (current === list) return true
+            current = current.parent as? View
+        }
+        return false
     }
 
     private fun buildUi() {
@@ -739,6 +772,7 @@ class MainActivity : Activity() {
     }
 
     private fun rebuildList() {
+        cancelPendingItemCallbacks()
         rebuilding = true
         if (reordering) {
             rebuildReorderList()
@@ -924,7 +958,12 @@ class MainActivity : Activity() {
             if (item === focusAfterRebuild) {
                 focusAfterRebuild = null
                 val focus: EditText = if (quickEntry) price else name
-                focus.postDelayed({ focusAndShowKeyboard(focus) }, 120)
+                val callback = Runnable {
+                    pendingItemFocus = null
+                    focusAndShowKeyboard(focus)
+                }
+                pendingItemFocus = callback
+                scroll.postDelayed(callback, 120)
             }
         }
 
@@ -1226,6 +1265,7 @@ class MainActivity : Activity() {
     }
 
     private fun focusAndShowKeyboard(input: EditText) {
+        if (!isCurrentItemView(input)) return
         input.requestFocus()
         input.setSelection(input.getText().length)
         scrollInputIntoView(input)
@@ -1237,7 +1277,10 @@ class MainActivity : Activity() {
 
     private fun scrollInputIntoView(input: EditText) {
         if (::scroll.isInitialized) {
-            scroll.postDelayed({
+            pendingItemScroll?.let { scroll.removeCallbacks(it) }
+            val callback = Runnable {
+                pendingItemScroll = null
+                if (!isCurrentItemView(input)) return@Runnable
                 val rect: Rect = Rect()
                 val itemCard: View = itemCardFor(input)
                 itemCard.getDrawingRect(rect)
@@ -1247,7 +1290,9 @@ class MainActivity : Activity() {
                 val visibleHeight: Int = viewportHeight - padding * 2
                 val targetTop: Int = if (rect.height() <= visibleHeight) rect.top - padding else rect.top
                 scroll.smoothScrollTo(0, Math.max(0, targetTop))
-             }, 260)
+            }
+            pendingItemScroll = callback
+            scroll.postDelayed(callback, 260)
         }
     }
 

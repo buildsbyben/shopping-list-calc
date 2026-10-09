@@ -1,5 +1,6 @@
 package io.github.buildsbyben.shoppinglistcalc
 
+import java.time.Duration
 import android.app.AlertDialog
 import android.os.Looper
 import android.content.Context
@@ -75,6 +76,65 @@ class MainActivityRegressionTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
     private fun positive() { clickDialogButton(AlertDialog.BUTTON_POSITIVE) }
+
+    @Test fun rapidAddsAfterFocusBeforeScrollKeepEveryItemAndFocusLatestRow() {
+        launch()
+        controller.visible()
+        repeat(5) {
+            button("+ Item").performClick()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(150))
+        }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals(5, loaded().size)
+        assertTrue(inputs()[8].hasFocus())
+    }
+
+    @Test fun rapidAddsBeforeFocusKeepEveryItemAndFocusLatestRow() {
+        store.saveQuickEntry(true)
+        launch()
+        controller.visible()
+        repeat(5) {
+            button("+ Item").performClick()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+        }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals(5, loaded().size)
+        assertTrue(inputs()[9].hasFocus())
+    }
+
+    @Test fun deletingRowWithPendingScrollDoesNotCrash() {
+        launch()
+        controller.visible()
+        button("+ Item").performClick()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(150))
+        button("×").performClick()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertTrue(loaded().isEmpty())
+    }
+
+    @Test fun recreatingWithPendingScrollPreservesItemWithoutCrash() {
+        launch()
+        controller.visible()
+        button("+ Item").performClick()
+        inputs()[0].setText("Milk")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(150))
+        controller.recreate()
+        activity = controller.get()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals("Milk", loaded().single().name)
+    }
+
+    @Test fun pausingWithPendingFocusDoesNotFocusOldRow() {
+        launch()
+        controller.visible()
+        button("+ Item").performClick()
+        val oldInput = inputs()[0]
+        oldInput.clearFocus()
+        controller.pause()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertFalse(oldInput.hasFocus())
+        controller.resume()
+    }
 
     @Test fun addingEditingAndReopeningPreservesCartAndTotals() {
         store.saveSettings(7.5, 10.0)
