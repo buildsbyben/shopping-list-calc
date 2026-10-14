@@ -24,8 +24,8 @@ android {
         applicationId "io.github.buildsbyben.shoppinglistcalc"
         minSdk 23
         targetSdk 35
-        versionCode 18
-        versionName "2.2"
+        versionCode 21
+        versionName "2.3"
     }
 
     // F-Droid rejects APKs containing AGP's dependency-metadata signing block.
@@ -43,7 +43,7 @@ android {
             versionNameSuffix "-dev"
         }
         release {
-            // F-Droid builds unsigned release APKs and signs them itself.
+            // F-Droid rebuilds unsigned APKs and verifies the developer signature.
             // Local release builds use this signing config only when supplied.
             if (releaseStoreFile) {
                 signingConfig signingConfigs.release
@@ -74,3 +74,5 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.14.1'
 }
+
+apply from: rootProject.file('gradle/release-apk-alignment.gradle')
