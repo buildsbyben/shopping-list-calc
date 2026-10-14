@@ -1,0 +1,79 @@
+// Canonicalize only the unsigned release APK's resources.arsc alignment.
+// No payload is recompressed or changed. This is the layout used by F-Droid's
+// reproducible-apk-tools --page-size 4 --pad-like-apksigner --replace recipe.
+// Keeping it in the unsigned build makes that external step idempotent.
+def canonicalizeResourceAlignment = { File apk ->
+    byte[] data = apk.bytes
+    def u16 = { int at -> (data[at] & 255) | ((data[at + 1] & 255) << 8) }
+    def u32 = { int at -> (0..3).inject(0L) { value, i -> value | ((data[at + i] & 255L) << (8 * i)) } }
+    def put16 = { byte[] out, int at, int value ->
+        (0..1).each { i -> out[at + i] = (byte) (value >> (8 * i)) }
+    }
+    def put32 = { byte[] out, int at, long value ->
+        (0..3).each { i -> out[at + i] = (byte) (value >> (8 * i)) }
+    }
+    int end = -1
+    for (int at = data.length - 22; at >= Math.max(0, data.length - 65557); at--) {
+        if (u32(at) == 0x06054b50L && at + 22 + u16(at + 20) == data.length) {
+            end = at
+            break
+        }
+    }
+    if (end < 0 || u16(end + 4) != 0 || u16(end + 6) != 0 || u16(end + 10) == 65535) {
+        throw new GradleException('Release alignment requires a single-disk non-ZIP64 APK')
+    }
+    int central = Math.toIntExact(u32(end + 16))
+    def entries = []
+    int at = central
+    for (int index = 0; index < u16(end + 10); index++) {
+        if (u32(at) != 0x02014b50L) throw new GradleException('Invalid APK central directory')
+        int nameLength = u16(at + 28)
+        String name = new String(data, at + 46, nameLength, 'UTF-8')
+        if (u16(at + 10) == 0 && name != 'resources.arsc') {
+            throw new GradleException("Review release alignment for new uncompressed entry: ${name}")
+        }
+        entries.add([name: name, central: at, local: Math.toIntExact(u32(at + 42))])
+        at += 46 + nameLength + u16(at + 30) + u16(at + 32)
+    }
+    if (at != end) throw new GradleException('Unexpected APK central directory trailer')
+    def resources = entries.findAll { it.name == 'resources.arsc' }
+    if (resources.size() != 1) throw new GradleException('Expected one resources.arsc entry')
+    int local = resources[0].local
+    if (u32(local) != 0x04034b50L || u16(local + 8) != 0) {
+        throw new GradleException('Expected uncompressed resources.arsc local entry')
+    }
+    int extraStart = local + 30 + u16(local + 26)
+    int oldSize = u16(local + 28)
+    int padding = (4 - ((extraStart + 6) % 4)) % 4
+    byte[] extra = new byte[6 + padding]
+    put16(extra, 0, 0xd935)
+    put16(extra, 2, 2 + padding)
+    put16(extra, 4, 4)
+    byte[] previous = Arrays.copyOfRange(data, extraStart, extraStart + oldSize)
+    if (Arrays.equals(previous, extra)) return
+    if (previous.any { it != 0 }) {
+        throw new GradleException('Review unfamiliar resources.arsc ZIP extra field before release')
+    }
+    int delta = extra.length - oldSize
+    byte[] normalized = new byte[data.length + delta]
+    System.arraycopy(data, 0, normalized, 0, extraStart)
+    System.arraycopy(extra, 0, normalized, extraStart, extra.length)
+    System.arraycopy(data, extraStart + oldSize, normalized, extraStart + extra.length,
+        data.length - extraStart - oldSize)
+    put16(normalized, local + 28, extra.length)
+    entries.each { entry ->
+        long offset = entry.local > local ? entry.local + delta : entry.local
+        put32(normalized, entry.central + delta + 42, offset)
+    }
+    put32(normalized, end + delta + 16, central + delta)
+    apk.bytes = normalized
+}
+
+tasks.configureEach { task ->
+    if (task.name == 'assembleRelease') {
+        task.doLast {
+            File apk = layout.buildDirectory.file('outputs/apk/release/app-release-unsigned.apk').get().asFile
+            if (apk.exists()) canonicalizeResourceAlignment(apk)
+        }
+    }
+}

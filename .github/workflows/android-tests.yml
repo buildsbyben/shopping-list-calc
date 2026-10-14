@@ -25,6 +25,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Run regression tests and Android lint
         run: ./gradlew testDebugUnitTest lintDebug --no-daemon --max-workers=2
+      - name: Verify unsigned APK matches the F-Droid alignment recipe
+        run: |
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2
+          curl --fail --location --retry 2 'https://gitlab.com/obfusk/reproducible-apk-tools/-/raw/v0.3.0/zipalign.py' -o "$RUNNER_TEMP/fdroid-zipalign.py"
+          echo "a47596d10395e099176c7b6624f1392c7f579e888310b0552ae25fe86c2565c9  $RUNNER_TEMP/fdroid-zipalign.py" | sha256sum --check
+          python3 "$RUNNER_TEMP/fdroid-zipalign.py" --page-size 4 --pad-like-apksigner --replace app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/fdroid-aligned.apk"
+          cmp app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/fdroid-aligned.apk"
       - name: Upload test and lint reports
         if: always()
         uses: actions/upload-artifact@v4

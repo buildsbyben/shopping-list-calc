@@ -16,10 +16,16 @@ For v2.2, this replaced three zero-padding bytes on the `resources.arsc` local
 ZIP header with seven bytes. Application contents were identical, but signature
 copying failed: `APK Signing Block offset < central directory offset`.
 
-For v2.3, package the public APK with that same alignment **before signing**.
-Do not publish Gradle's directly signed output without this normalization.
-This supports the currently inherited F-Droid recipe without depending on the
-separate correction proposed for the already-published v2.2 APK.
+For v2.3, `:app:assembleRelease` canonicalizes the unsigned APK's resources.arsc
+alignment in `gradle/release-apk-alignment.gradle`. No application payload is
+changed or recompressed. The external F-Droid step is therefore idempotent,
+and signature reproduction is required to pass both with and without it.
+Unfamiliar uncompressed entries or extra fields fail the build for review.
+
+Publish by signing this normalized unsigned output with `apksigner`. Do not use
+Gradle's directly signed output: the alignment hook intentionally never edits
+an already signed APK. This supports either F-Droid recipe, independently of
+when the separate v2.2 metadata correction is merged.
 
 ## Verification procedure
 
@@ -34,15 +40,16 @@ separate correction proposed for the already-published v2.2 APK.
 3. Obtain `zipalign.py` from `obfusk/reproducible-apk-tools` tag `v0.3.0`.
    Expected SHA-256:
    `a47596d10395e099176c7b6624f1392c7f579e888310b0552ae25fe86c2565c9`.
-   Normalize each independent unsigned APK with the command above.
+   Normalize each independent unsigned APK with the command above. Require
+   identical bytes before and after this external normalization.
 4. Sign the first normalized APK with Android build-tools `apksigner` and the
    existing protected release key. Never commit or log signing credentials.
 5. Run `apksigcopier copy SIGNED_APK SECOND_ALIGNED_APK REPRODUCED_APK`.
    Require byte-for-byte equality between SIGNED_APK and REPRODUCED_APK;
    verify the reproduced signature with `apksigner verify --print-certs`.
-6. Also test signature copying from the second raw unsigned APK. If F-Droid
-   removes the inherited alignment recipe, this extra check establishes whether
-   the same published APK is compatible with the unmodified build output.
+6. Also test signature copying from the second unsigned APK without any
+   external normalization. Require byte-identical signed output and a valid
+   signature for both paths, so removing the inherited recipe cannot break it.
 7. Verify application ID, version name/code, one allowed signing certificate,
    embedded revision, and disabled dependency metadata. After publication,
    download the public APK and repeat checksum, signature and provenance checks.
