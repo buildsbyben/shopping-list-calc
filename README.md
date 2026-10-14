@@ -161,7 +161,7 @@ F-Droid listing text and images live in `fastlane/metadata/android/en-US/`:
 README screenshots are separate files in `docs/screenshots/`; update both sets
 when refreshing the app screenshots.
 
-Version 2.1 uses version code 16 and `changelogs/16.txt`. For future releases,
+Version 2.3 uses version code 21 and `changelogs/21.txt`. For future releases,
 assign a new version name and an unused, increasing version code in
 `app/build.gradle`, then add a matching changelog. Keep published changelogs
 unchanged. Listing updates become available through F-Droid's release processing,

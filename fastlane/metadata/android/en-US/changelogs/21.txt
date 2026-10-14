@@ -1,0 +1,3 @@
+Fixed a crash when rapidly adding items.
+The budget field now opens a numeric keyboard.
+Completed the Kotlin migration while keeping the familiar interface and existing lists and settings.
