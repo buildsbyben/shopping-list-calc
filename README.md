@@ -10,6 +10,8 @@ cart.
 It is designed for people who want a focused shopping tool without an account,
 ads, cloud sync, or a long list of unnecessary features.
 
+<a href="https://github.com/buildsbyben/shopping-list-calc/releases">Download the APK</a>
+
 ## What it does
 
 - Builds a shopping list you can drag to reorder, with edge scrolling for longer lists.
@@ -73,6 +75,7 @@ Download Shopping List Calculator from
 [F-Droid](https://f-droid.org/packages/io.github.buildsbyben.shoppinglistcalc).
 
 You can also build the app from source or install a release APK you trust.
+<a href="https://github.com/buildsbyben/shopping-list-calc/releases">Download the APK</a>
 
 Because Android requires an APK to be signed, an app installed from a different
 source or signed with a different key may need to be uninstalled before Android
